@@ -18,26 +18,70 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-from twisted.internet.protocol import ServerFactory
-import txprotobuf
+from twisted.internet.protocol import ServerFactory, connectionDone
+
+from kontalklib import txprotobuf
+
+import kontalklib.c2s_pb2
+import kontalklib.s2s_pb2
+
+from kontalklib.c2s_pb2 import *
+from kontalklib.s2s_pb2 import *
 
 
 class InternalServerProtocol(txprotobuf.Protocol):
 
+    def connectionMade(self):
+        self.service.connected()
+
+    def connectionLost(self, reason=connectionDone):
+        self.service.disconnected()
+
+
+class S2SServerProtocol(InternalServerProtocol):
+
     def __init__(self):
+        txprotobuf.Protocol.__init__(self, kontalklib.s2s_pb2)
+
+    def boxReceived(self, data, tx_id = None):
+        # TODO
         pass
 
-    def connectionMade(self):
-        print "connection made!"
 
-    def boxReceived(self, data):
-        print "box received", data
+class C2SServerProtocol(InternalServerProtocol):
+
+    def __init__(self):
+        txprotobuf.Protocol.__init__(self, kontalklib.c2s_pb2)
+
+    def boxReceived(self, data, tx_id = None):
+        #print "box received: " + data.__class__.__name__
+
+        # optional reply
+        r = None
+        name = data.__class__.__name__
+        if name == 'AuthenticateRequest':
+            r = AuthenticateResponse()
+            r.valid = self.service.authenticate(tx_id, data.token)
+
+        elif name == 'MessagePostRequest':
+            r = MessagePostResponse()
+            q = self.service.post_message(tx_id,
+                tuple(data.recipient),
+                data.mime,
+                tuple(data.flags),
+                data.content)
+            if q:
+                # TODO
+                pass
+
+        if r:
+            self.sendBox(r, tx_id)
 
 
 class InternalServerFactory(ServerFactory):
-    protocol = InternalServerProtocol
 
-    def __init__(self, service_class, broker):
+    def __init__(self, protocol, service_class, broker):
+        self.protocol = protocol
         self.protocols = []
         self.service = service_class
         self.broker = broker

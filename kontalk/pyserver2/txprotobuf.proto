@@ -1,4 +1,0 @@
-message BoxContainer {
-  required string name = 1;
-  required bytes value = 2;
-}
