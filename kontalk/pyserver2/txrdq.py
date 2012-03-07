@@ -42,9 +42,10 @@ class ResizableDispatchQueue(object):
 
     _sentinel = object()
 
-    def __init__(self, func):
+    def __init__(self, func, userdata = None):
         self._queue = defer.DeferredQueue()
         self._func = func
+        self._userdata = userdata
         self._pool = DeferredPool()
         self._coop = task.Cooperator()
         self._currentWidth = 0
@@ -70,7 +71,7 @@ class ResizableDispatchQueue(object):
 
     def _call(self, obj):
         if not obj is self._sentinel:
-            return defer.maybeDeferred(self._func, obj)
+            return defer.maybeDeferred(self._func, obj, self._userdata)
 
     def next(self):
         if self._stopped:

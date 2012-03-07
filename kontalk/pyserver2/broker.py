@@ -48,7 +48,7 @@ class C2SChannel:
     def disconnected(self):
         print "disconnected."
         if self.userid:
-            self.broker.unregister_user_queue(self.userid)
+            self.broker.unregister_user_consumer(self.userid)
 
     def authenticate(self, tx_id, auth_token):
         '''Client tried to authenticate.'''
@@ -57,7 +57,7 @@ class C2SChannel:
         if userid:
             print "[%s] user %s logged in." % (tx_id, userid)
             self.userid = userid
-            self.broker.register_user_queue(userid, self._incoming)
+            self.broker.register_user_consumer(userid, self._incoming)
             return True
 
         return False
@@ -69,9 +69,9 @@ class C2SChannel:
             (tx_id, str(recipient), mime, str(flags))
         # TODO
         for rcpt in recipient:
-            self.broker.publish_user(rcpt, [mime, flags, content])
+            self.broker.publish_user(rcpt, [self.userid, mime, flags, content])
 
-    def _incoming(self, data):
+    def _incoming(self, data, unused = None):
         '''Internal queue worker.'''
         # TODO
         print "incoming message:", data
@@ -127,10 +127,12 @@ class S2SChannel:
 class MessageBroker:
     '''Message broker connection manager.'''
 
-    '''Map of the queues.'''
+    '''Map of the queues.
+    Queues in this map will contain the collection of spools for generic userids.'''
     _queues = {}
-    '''Map of the queue routes.'''
-    _routes = {}
+    '''Map of the queue listeners.
+    Queues in this map will contain the collection of workers for specific userids.'''
+    _listeners = {}
 
     def __init__(self, application):
         self.application = application
@@ -152,44 +154,71 @@ class MessageBroker:
             factory=factory, interface=config.config['server']['s2s.bind'][0])
         service.setServiceParent(self.application)
 
-    def _setup_user_queue(self, uhash):
+    def _usermsg_worker(self, data, userid):
+        print "queue data for user %s" % userid
+        # TODO 1. store message to disk
+
+        # 2. send message to listeners
+
+        # generic user, post to every listener
+        if len(userid) == utils.USERID_LENGTH:
+            try:
+                for uid, q in self._listeners[userid].iteritems():
+                    q.put(data)
+            except:
+                pass
+
+        elif len(userid) == utils.USERID_LENGTH_RESOURCE:
+            uhash, resource = userid[:utils.USERID_LENGTH], \
+                userid[utils.USERID_LENGTH_RESOURCE-utils.USERID_LENGTH:]
+            try:
+                self._listeners[uhash][resource].put(data)
+            except:
+                pass
+
+        else:
+            print "warning: unknown userid format %s" % userid
+
+    def _setup_user_queue(self, userid):
+        uhash = userid[:utils.USERID_LENGTH]
         if uhash not in self._queues:
-            self._queues[uhash] = {'spool' : Queue() }
+            self._queues[uhash] = ResizableDispatchQueue(self._usermsg_worker, uhash)
+            self._queues[uhash].start(5)
+        if userid not in self._queues:
+            self._queues[userid] = ResizableDispatchQueue(self._usermsg_worker, userid)
+            self._queues[userid].start(5)
 
-    def register_user_queue(self, userid, worker):
+    def register_user_consumer(self, userid, worker):
         uhash, resource = userid[:utils.USERID_LENGTH], \
             userid[utils.USERID_LENGTH_RESOURCE-utils.USERID_LENGTH:]
 
         try:
             # stop previous queue if any
-            self._queues[uhash][resource].stop()
+            self._listeners[uhash][resource].stop()
         except:
             pass
 
-        self._setup_user_queue(uhash)
+        # setup a user queue if needed
+        self._setup_user_queue(userid)
 
-        q = ResizableDispatchQueue(worker)
-        self._queues[uhash][resource] = q
-        q.start(5)
+        if uhash not in self._listeners:
+            self._listeners[uhash] = {}
 
-    def unregister_user_queue(self, userid):
+        self._listeners[uhash][resource] = ResizableDispatchQueue(worker)
+        self._listeners[uhash][resource].start(5)
+
+    def unregister_user_consumer(self, userid):
         uhash, resource = userid[:utils.USERID_LENGTH], \
             userid[utils.USERID_LENGTH_RESOURCE-utils.USERID_LENGTH:]
 
         try:
             # stop previous queue if any
-            self._queues[uhash][resource].stop()
-            del self._queues[uhash][resource]
+            self._listeners[uhash][resource].stop()
+            del self._listeners[uhash][resource]
+            if len(self._listeners[uhash]) == 0:
+                del self._listeners[uhash]
         except:
             pass
-
-    """
-    def register_server_queue(self, fingerprint, worker):
-        self.register_queue('s:' + fingerprint, worker)
-
-    def unregister_server_queue(self, fingerprint):
-        self.unregister_queue('s:' + fingerprint)
-    """
 
     def publish_user(self, userid, msg):
         '''Publish a message to a user, either generic or specific.'''
@@ -204,21 +233,15 @@ class MessageBroker:
             # TODO should we throw an exception here?
             return None
 
+        # setup a user queue anyway
+        self._setup_user_queue(userid)
+
         # specific userid
         if resource:
-            self._setup_user_queue(uhash)
-
-            if resource in self._queues[uhash][resource]:
-                self._queues[uhash][resource].put(msg)
+            # push to the specific queue - worker will do the rest
+            self._queues[userid].put(msg)
 
         # generic userid
         else:
-            self._setup_user_queue(uhash)
-            if len(self._queues[uhash]) > 1:
-                for k, v in self._queues[uhash].iteritems():
-                    if k != 'spool':
-                        v.put(msg)
-            else:
-                self._queues[uhash]['spool'].put(msg)
-
-        # TODO store on disk
+            # push to the generic queue - worker will do the rest
+            self._queues[uhash].put(msg)
