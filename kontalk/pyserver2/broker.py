@@ -26,104 +26,13 @@ from twisted.application import internet, service
 from twisted.internet.defer import Deferred
 
 # local imports
+from channels import *
 from broker_twisted import *
 import version
 import kontalk.config as config
-from kontalklib import database, utils, token, txprotobuf
+from kontalklib import database, utils
 from kontalklib.utils import PersistentDict
 from txrdq import ResizableDispatchQueue, PersistentDispatchQueue
-
-
-class C2SChannel:
-    '''Client channel implementation.'''
-
-    userid = None
-
-    def __init__(self, protocol, broker):
-        self.protocol = protocol
-        self.broker = broker
-
-    def connected(self):
-        # TODO
-        print "connected!"
-
-    def disconnected(self):
-        print "disconnected."
-        if self.userid:
-            self.broker.unregister_user_consumer(self.userid)
-
-    def authenticate(self, tx_id, auth_token):
-        '''Client tried to authenticate.'''
-        print "[%s] authenticating token: %s" % (tx_id, auth_token)
-        userid = token.verify_user_token(auth_token, self.broker.db.servers(), config.config['server']['fingerprint'])
-        if userid:
-            print "[%s] user %s logged in." % (tx_id, userid)
-            self.userid = userid
-            self.broker.register_user_consumer(userid, self._incoming)
-            return True
-
-        return False
-
-    def post_message(self, tx_id, recipient = None, mime = None, flags = None, content = None):
-        '''User posted a message.'''
-        # TODO
-        print "[%s] posting message for: %s (mime=%s, flags=%s)" % \
-            (tx_id, str(recipient), mime, str(flags))
-        # TODO
-        for rcpt in recipient:
-            self.broker.publish_user(self.userid, str(rcpt), [str(mime), flags, content], True)
-
-    def _incoming(self, data, unused = None):
-        '''Internal queue worker.'''
-        # TODO
-        print "incoming message:", data
-        a = NewMessage()
-        a.message_id = data['messageid']
-        a.sender = data['sender']
-        a.mime = 'undefined'
-        a.encrypted = False
-        a.content = 'AOOAOAOAOAO'
-        self.protocol.sendBox(a)
-
-
-class S2SChannel:
-    '''Server channel implementation.'''
-    # TODO
-    # TODO
-    # TODO
-
-    fingerprint = None
-
-    def __init__(self, protocol, broker):
-        self.protocol = protocol
-        self.broker = broker
-
-    def connected(self):
-        # TODO
-        print "connected!"
-
-    def disconnected(self):
-        print "disconnected."
-        if self.fingerprint:
-            self.broker.unregister_server_queue(self.fingerprint)
-
-    """
-    TODO
-    def handshake(self, tx_id, auth_token):
-        print "authenticating token: %s" % auth_token
-        userid = token.verify_user_token(auth_token, self.broker.db.servers(), config.config['server']['fingerprint'])
-        if userid:
-            print "user %s logged in." % userid
-            self.userid = userid
-            self.broker.register_user_queue(userid, self._incoming)
-            return True
-
-        return False
-    """
-
-    def _incoming(self, data):
-        # TODO
-        print "incoming message:", data
 
 
 class MessageStorage:
@@ -145,16 +54,29 @@ class MessageStorage:
             self._mboxes[uid] = db
         return self._mboxes[uid]
 
+    def get_timestamp(self, uid):
+        '''Retrieves the timestamp of a mailbox.'''
+        # TODO
+        pass
+
+    def stop(self, uid):
+        '''Stops a storage for a userid.'''
+        is_generic = (len(uid) == utils.USERID_LENGTH)
+        # avoid creating a useless mbox
+        utils.touch(os.path.join(self._path, uid + '.mbox'), is_generic)
+        # also touch the generic mbox
+        if not is_generic:
+            utils.touch(os.path.join(self._path, uid[:utils.USERID_LENGTH] + '.mbox'))
+
     def load(self, uid):
         try:
-            return self.get_storage(uid, 'r', True, False)
+            return self.get_storage(uid, 'r', False, False)
         except:
             return None
 
     def store(self, uid, msg, force = False):
         '''Used to persist a message.'''
         db = self.get_storage(uid)
-        print "storing message %s to disk" % msg['messageid']
         if msg['messageid'] not in db or force:
             db[msg['messageid']] = msg
             db.sync()
@@ -168,14 +90,31 @@ class MessageStorage:
             db[msg['messageid']] = msg
             db.sync()
 
-        # delete the old message in the generic user mbox
+        # delete the old message in the generic user mailbox
         db = self.get_storage(userid[:utils.USERID_LENGTH])
         try:
             del db[msg['originalid']]
             db.sync()
         except:
+            pass
+
+    def delete(self, uid, msgid):
+        '''Deletes a single message.'''
+        try:
+            db = self.get_storage(uid)
+            del db[msgid]
+            db.sync()
+        except:
             import traceback
             traceback.print_exc()
+
+
+# no ack is required
+MSG_ACK_NONE = 0
+# ack will not be bounced to sender
+MSG_ACK_MANUAL = 1
+# ack will be bounced to sender
+MSG_ACK_BOUNCE = 2
 
 
 class MessageBroker:
@@ -290,6 +229,8 @@ class MessageBroker:
         uhash, resource = self.split_userid(userid)
 
         try:
+            # end user storage
+            self._storage.stop(userid)
             # stop previous queue if any
             self._consumers[uhash][resource].stop()
             del self._consumers[uhash][resource]
@@ -312,7 +253,7 @@ class MessageBroker:
             for msgid, msg in stored.iteritems():
                 self._usermsg_worker(msg)
 
-    def publish_user(self, sender, userid, msg, need_ack = False):
+    def publish_user(self, sender, userid, msg, need_ack = MSG_ACK_NONE):
         '''Publish a message to a user, either generic or specific.'''
 
         if len(userid) == utils.USERID_LENGTH:
@@ -339,3 +280,25 @@ class MessageBroker:
         self._usermsg_worker(outmsg)
 
         return msg_id
+
+    def ack_user(self, sender, msgid):
+        '''Manually acknowledge a message.'''
+
+        # retrieve the message that needs to be acknowledged
+        db = self._storage.load(sender)
+        try:
+            msg = db[msgid]
+            print "found message to be acknowledged - %s" % msgid
+
+            # push the receipt back to the sender
+            if msg['need_ack'] == MSG_ACK_BOUNCE:
+                # TODO prepare a message receipt and push it
+                pass
+
+            # delete the message from the recipient mailbox
+            del db[msgid]
+            db.sync()
+        except:
+            import traceback
+            traceback.print_exc()
+            return False

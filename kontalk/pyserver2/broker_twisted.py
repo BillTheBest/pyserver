@@ -22,11 +22,8 @@ from twisted.internet.protocol import ServerFactory, connectionDone
 
 from kontalklib import txprotobuf
 
-import kontalklib.c2s_pb2
-import kontalklib.s2s_pb2
-
-from kontalklib.c2s_pb2 import *
-from kontalklib.s2s_pb2 import *
+import kontalklib.c2s_pb2 as c2s
+import kontalklib.s2s_pb2 as s2s
 
 
 class InternalServerProtocol(txprotobuf.Protocol):
@@ -41,7 +38,7 @@ class InternalServerProtocol(txprotobuf.Protocol):
 class S2SServerProtocol(InternalServerProtocol):
 
     def __init__(self):
-        txprotobuf.Protocol.__init__(self, kontalklib.s2s_pb2)
+        txprotobuf.Protocol.__init__(self, s2s)
 
     def boxReceived(self, data, tx_id = None):
         # TODO
@@ -51,7 +48,7 @@ class S2SServerProtocol(InternalServerProtocol):
 class C2SServerProtocol(InternalServerProtocol):
 
     def __init__(self):
-        txprotobuf.Protocol.__init__(self, kontalklib.c2s_pb2)
+        txprotobuf.Protocol.__init__(self, c2s)
 
     def boxReceived(self, data, tx_id = None):
         #print "box received: " + data.__class__.__name__
@@ -60,19 +57,29 @@ class C2SServerProtocol(InternalServerProtocol):
         r = None
         name = data.__class__.__name__
         if name == 'AuthenticateRequest':
-            r = AuthenticateResponse()
+            r = c2s.AuthenticateResponse()
             r.valid = self.service.authenticate(tx_id, data.token)
 
         elif name == 'MessagePostRequest':
-            r = MessagePostResponse()
-            q = self.service.post_message(tx_id,
-                tuple(data.recipient),
-                data.mime,
-                tuple(data.flags),
-                data.content)
-            if q:
-                # TODO
-                pass
+            r = c2s.MessagePostResponse()
+            if len(data.recipient) > 0:
+                res = self.service.post_message(tx_id,
+                    tuple(data.recipient),
+                    data.mime,
+                    tuple(data.flags),
+                    data.content)
+                for userid, msgid in res.iteritems():
+                    me = r.entry.add()
+                    me.status = c2s.MessageSent.STATUS_SUCCESS
+                    me.user_id = userid
+                    me.message_id = msgid
+
+        elif name == 'MessageAckRequest':
+            r = c2s.MessageAckResponse()
+            res = self.service.ack_message(tx_id, tuple(data.message_id))
+            for msgid in res:
+                print "ack message %s" % msgid
+                # TODO TODO TODO
 
         if r:
             self.sendBox(r, tx_id)
