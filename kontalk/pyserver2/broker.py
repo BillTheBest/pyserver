@@ -20,6 +20,7 @@
 
 import os, socket, time
 from Queue import Queue
+import pickle, shelve
 
 from twisted.application import internet, service
 from twisted.internet.defer import Deferred
@@ -29,7 +30,8 @@ from broker_twisted import *
 import version
 import kontalk.config as config
 from kontalklib import database, utils, token, txprotobuf
-from txrdq import ResizableDispatchQueue
+from kontalklib.utils import PersistentDict
+from txrdq import ResizableDispatchQueue, PersistentDispatchQueue
 
 
 class C2SChannel:
@@ -69,17 +71,17 @@ class C2SChannel:
             (tx_id, str(recipient), mime, str(flags))
         # TODO
         for rcpt in recipient:
-            self.broker.publish_user(rcpt, [self.userid, mime, flags, content])
+            self.broker.publish_user(self.userid, str(rcpt), [str(mime), flags, content], True)
 
     def _incoming(self, data, unused = None):
         '''Internal queue worker.'''
         # TODO
         print "incoming message:", data
         a = NewMessage()
-        a.message_id = 'TEST'
-        a.sender = 'SENDER';
-        a.mime = 'text/plain'
-        a.encrypted = False;
+        a.message_id = data['messageid']
+        a.sender = data['sender']
+        a.mime = 'undefined'
+        a.encrypted = False
         a.content = 'AOOAOAOAOAO'
         self.protocol.sendBox(a)
 
@@ -124,15 +126,66 @@ class S2SChannel:
         print "incoming message:", data
 
 
+class MessageStorage:
+    '''Map of mailbox storages.'''
+    _mboxes = {}
+
+    def __init__(self, path):
+        self._path = path
+
+    def get_storage(self, uid, flag = 'c', force = False, cache = True):
+        if uid not in self._mboxes or force:
+            try:
+                os.makedirs(self._path)
+            except:
+                pass
+            db = PersistentDict(os.path.join(self._path, uid + '.mbox'), flag)
+            if not cache:
+                return db
+            self._mboxes[uid] = db
+        return self._mboxes[uid]
+
+    def load(self, uid):
+        try:
+            return self.get_storage(uid, 'r', True, False)
+        except:
+            return None
+
+    def store(self, uid, msg, force = False):
+        '''Used to persist a message.'''
+        db = self.get_storage(uid)
+        print "storing message %s to disk" % msg['messageid']
+        if msg['messageid'] not in db or force:
+            db[msg['messageid']] = msg
+            db.sync()
+
+    def deliver(self, userid, msg, force = False):
+        '''Used to persist a message that was intended to a generic userid.'''
+
+        # store the new message
+        db = self.get_storage(userid)
+        if msg['messageid'] not in db or force:
+            db[msg['messageid']] = msg
+            db.sync()
+
+        # delete the old message in the generic user mbox
+        db = self.get_storage(userid[:utils.USERID_LENGTH])
+        try:
+            del db[msg['originalid']]
+            db.sync()
+        except:
+            import traceback
+            traceback.print_exc()
+
+
 class MessageBroker:
     '''Message broker connection manager.'''
 
-    '''Map of the queues.
-    Queues in this map will contain the collection of spools for generic userids.'''
-    _queues = {}
-    '''Map of the queue listeners.
+    '''Map of the queue consumers.
     Queues in this map will contain the collection of workers for specific userids.'''
-    _listeners = {}
+    _consumers = {}
+    '''The messages storage.'''
+    _storage = MessageStorage(config.config['broker']['storage_path'])
 
     def __init__(self, application):
         self.application = application
@@ -154,94 +207,135 @@ class MessageBroker:
             factory=factory, interface=config.config['server']['s2s.bind'][0])
         service.setServiceParent(self.application)
 
-    def _usermsg_worker(self, data, userid):
-        print "queue data for user %s" % userid
-        # TODO 1. store message to disk
+    def _usermsg_worker(self, msg):
+        userid = msg['userid']
+        need_ack = msg['need_ack']
+        #print "queue data for user %s (need_ack=%s)" % (userid, need_ack)
 
-        # 2. send message to listeners
-
-        # generic user, post to every listener
+        # generic user, post to every consumer
         if len(userid) == utils.USERID_LENGTH:
             try:
-                for uid, q in self._listeners[userid].iteritems():
-                    q.put(data)
+                for resource, q in self._consumers[userid].iteritems():
+                    outmsg = dict(msg)
+                    # branch the message :)
+                    outmsg['messageid'] = self.message_id()
+                    outmsg['originalid'] = msg['messageid']
+                    outmsg['userid'] += resource
+
+                    # store to disk (if need_ack)
+                    if need_ack:
+                        try:
+                            #print "storing message %s to disk" % outmsg['messageid']
+                            self._storage.deliver(outmsg['userid'], outmsg)
+                        except:
+                            # TODO handle errors
+                            import traceback
+                            traceback.print_exc()
+
+                    # send to client listener
+                    q.put(outmsg)
+
             except:
-                pass
+                print "warning: no listener to deliver message!"
+                # store to temporary spool
+                self._storage.store(userid, msg)
 
         elif len(userid) == utils.USERID_LENGTH_RESOURCE:
-            uhash, resource = userid[:utils.USERID_LENGTH], \
-                userid[utils.USERID_LENGTH_RESOURCE-utils.USERID_LENGTH:]
+            uhash, resource = self.split_userid(userid)
+
+            # store to disk (if need_ack)
+            if need_ack:
+                try:
+                    #print "storing message %s to disk" % msg['messageid']
+                    self._storage.store(userid, msg)
+                except:
+                    # TODO handle errors
+                    import traceback
+                    traceback.print_exc()
+
             try:
-                self._listeners[uhash][resource].put(data)
+                # send to client consumer
+                self._consumers[uhash][resource].put(msg)
             except:
-                pass
+                print "warning: no listener to deliver message to resource %s!" % resource
 
         else:
             print "warning: unknown userid format %s" % userid
 
-    def _setup_user_queue(self, userid):
-        uhash = userid[:utils.USERID_LENGTH]
-        if uhash not in self._queues:
-            self._queues[uhash] = ResizableDispatchQueue(self._usermsg_worker, uhash)
-            self._queues[uhash].start(5)
-        if userid not in self._queues:
-            self._queues[userid] = ResizableDispatchQueue(self._usermsg_worker, userid)
-            self._queues[userid].start(5)
-
     def register_user_consumer(self, userid, worker):
-        uhash, resource = userid[:utils.USERID_LENGTH], \
-            userid[utils.USERID_LENGTH_RESOURCE-utils.USERID_LENGTH:]
+        uhash, resource = self.split_userid(userid)
 
         try:
             # stop previous queue if any
-            self._listeners[uhash][resource].stop()
+            self._consumers[uhash][resource].stop()
         except:
             pass
 
-        # setup a user queue if needed
-        self._setup_user_queue(userid)
+        if uhash not in self._consumers:
+            self._consumers[uhash] = {}
 
-        if uhash not in self._listeners:
-            self._listeners[uhash] = {}
+        self._consumers[uhash][resource] = ResizableDispatchQueue(worker)
+        self._consumers[uhash][resource].start(5)
 
-        self._listeners[uhash][resource] = ResizableDispatchQueue(worker)
-        self._listeners[uhash][resource].start(5)
+        """
+        WARNING these two need to be called in this order!!!
+        Otherwise bad things happen...
+        """
+        # load previously stored messages (for specific) and requeue them
+        self._reload_usermsg_queue(userid)
+        # load previously stored messages (for generic) and requeue them
+        self._reload_usermsg_queue(uhash)
 
     def unregister_user_consumer(self, userid):
-        uhash, resource = userid[:utils.USERID_LENGTH], \
-            userid[utils.USERID_LENGTH_RESOURCE-utils.USERID_LENGTH:]
+        uhash, resource = self.split_userid(userid)
 
         try:
             # stop previous queue if any
-            self._listeners[uhash][resource].stop()
-            del self._listeners[uhash][resource]
-            if len(self._listeners[uhash]) == 0:
-                del self._listeners[uhash]
+            self._consumers[uhash][resource].stop()
+            del self._consumers[uhash][resource]
+            if len(self._consumers[uhash]) == 0:
+                del self._consumers[uhash]
         except:
-            pass
+            import traceback
+            traceback.print_exc()
 
-    def publish_user(self, userid, msg):
+    def split_userid(self, userid):
+        return userid[:utils.USERID_LENGTH], userid[utils.USERID_LENGTH:]
+
+    def message_id(self):
+        return utils.rand_str(30)
+
+    def _reload_usermsg_queue(self, uid):
+        stored = dict(self._storage.load(uid))
+        if stored:
+            # requeue messages
+            for msgid, msg in stored.iteritems():
+                self._usermsg_worker(msg)
+
+    def publish_user(self, sender, userid, msg, need_ack = False):
         '''Publish a message to a user, either generic or specific.'''
 
         if len(userid) == utils.USERID_LENGTH:
             uhash, resource = userid, None
         elif len(userid) == utils.USERID_LENGTH_RESOURCE:
-            uhash, resource = userid[:utils.USERID_LENGTH], \
-                userid[utils.USERID_LENGTH_RESOURCE-utils.USERID_LENGTH:]
+            uhash, resource = self.split_userid(userid)
         else:
             print "invalid userid format: %s" % userid
             # TODO should we throw an exception here?
             return None
 
-        # setup a user queue anyway
-        self._setup_user_queue(userid)
+        # prepare message dict
+        msg_id = self.message_id()
+        outmsg = {
+            'messageid' : msg_id,
+            'sender' : sender,
+            'userid' : userid,
+            'timestamp' : time.time(),
+            'need_ack' : need_ack,
+            'payload' : msg
+        }
 
-        # specific userid
-        if resource:
-            # push to the specific queue - worker will do the rest
-            self._queues[userid].put(msg)
+        # process message immediately
+        self._usermsg_worker(outmsg)
 
-        # generic userid
-        else:
-            # push to the generic queue - worker will do the rest
-            self._queues[uhash].put(msg)
+        return msg_id

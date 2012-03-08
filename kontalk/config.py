@@ -7,6 +7,9 @@ config = {
         'c2s.bind' : ('localhost', 5554),
         's2s.bind' : ('localhost', 5556)
     },
+    'broker' : {
+        'storage_path' : '/tmp/kontalk'
+    },
     'database' : {
         'host' : 'localhost',
         'port' : 3306,

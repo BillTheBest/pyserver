@@ -2,6 +2,7 @@
 '''This code is under Public Domain.'''
 
 from twisted.internet import defer, task
+import pickle, cPickle
 
 
 class DeferredPool(object):
@@ -42,10 +43,9 @@ class ResizableDispatchQueue(object):
 
     _sentinel = object()
 
-    def __init__(self, func, userdata = None):
+    def __init__(self, func):
         self._queue = defer.DeferredQueue()
         self._func = func
-        self._userdata = userdata
         self._pool = DeferredPool()
         self._coop = task.Cooperator()
         self._currentWidth = 0
@@ -71,7 +71,7 @@ class ResizableDispatchQueue(object):
 
     def _call(self, obj):
         if not obj is self._sentinel:
-            return defer.maybeDeferred(self._func, obj, self._userdata)
+            return defer.maybeDeferred(self._func, obj)
 
     def next(self):
         if self._stopped:
@@ -117,3 +117,51 @@ class ResizableDispatchQueue(object):
 
     def setWidth(self, width):
         self.width = width
+
+class PersistentDispatchQueue(ResizableDispatchQueue):
+
+    def __init__(self, filename, func):
+        ResizableDispatchQueue.__init__(self, func)
+        try:
+            # reload queue data from storage
+            _file = open(filename, 'rb')
+            self.elements = cPickle.load(_file)
+            _file.close()
+
+            for elem in self.elements:
+                ResizableDispatchQueue.put(self, elem)
+        except:
+            self.elements = []
+
+        self._filename = filename
+        # file will be opened on first sync
+        self._file = None
+
+    def put(self, obj):
+        ResizableDispatchQueue.put(self, obj)
+        # save to disk
+        self.elements.append(obj)
+        self._sync()
+
+    def next(self):
+        d = ResizableDispatchQueue.next(self)
+        if len(self.elements) > 0:
+            del self.elements[0]
+            self._sync()
+        return d
+
+    def stop(self):
+        print "stopping queue (cleaning %s)" % self._filename
+        ResizableDispatchQueue.stop(self)
+        self._file.close()
+        os.remove(self._filename)
+
+    def _sync(self):
+        print "writing down %d elements to %s" % (len(self.elements), self._filename)
+        if not self._file:
+            self._file = open(self._filename, 'wb')
+        self._file.seek(0)
+        self._file.truncate()
+        if len(self.elements) > 0:
+            cPickle.dump(self.elements, self._file, pickle.HIGHEST_PROTOCOL)
+        self._file.flush()
