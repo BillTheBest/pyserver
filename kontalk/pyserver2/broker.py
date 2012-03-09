@@ -292,8 +292,8 @@ class MessageBroker:
 
         for msgid in msgid_list:
             try:
+                msg = db[msgid]
                 if msg['need_ack'] == MSG_ACK_BOUNCE:
-                    msg = db[msgid]
                     print "found message to be acknowledged - %s" % msgid
                     # create the message if not already done
                     backuser = msg['sender']
@@ -302,7 +302,7 @@ class MessageBroker:
 
                     e = rcpt_list[backuser].entry.add()
                     e.message_id = msgid
-                    e.status = c2s.ReceiptStatus.Entry.STATUS_SUCCESS
+                    e.status = c2s.ReceiptMessage.Entry.STATUS_SUCCESS
                     e.timestamp = time.strftime('%Y-%m-%d %H:%M:%S %z')
 
                 res[msgid] = True
@@ -313,7 +313,7 @@ class MessageBroker:
 
         # push the receipts back to the senders
         for backuser, r in rcpt_list.iteritems():
-            if self.publish_user(sender, backuser, { 'mime' : 'r', flags : {} }, r.SerializeToString(), MSG_ACK_MANUAL):
+            if self.publish_user(sender, backuser, { 'mime' : 'r', 'flags' : {} }, r.SerializeToString(), MSG_ACK_MANUAL):
                 # it's safe to delete the messages now
                 for e in r.entry:
                     del db[e.message_id]

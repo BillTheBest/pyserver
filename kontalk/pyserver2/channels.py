@@ -82,7 +82,8 @@ class C2SChannel:
         print "incoming message:", data
         a = c2s.NewMessage()
         a.message_id = data['messageid']
-        a.original_id = data['originalid']
+        if 'original_id' in data:
+            a.original_id = data['originalid']
         # TODO format timestamp :D
         a.timestamp = time.strftime('%Y-%m-%d %H:%M:%S %z', time.localtime(data['timestamp']))
         a.sender = data['sender']
