@@ -19,6 +19,7 @@
 '''
 
 
+import time
 from kontalklib import token
 import kontalk.config as config
 import kontalklib.c2s_pb2 as c2s
@@ -63,29 +64,31 @@ class C2SChannel:
         res = {}
         for rcpt in recipient:
             u = str(rcpt)
-            # TODO formed message??
-            res[u] = self.broker.publish_user(self.userid, str(rcpt), [str(mime), flags, content], broker.MSG_ACK_BOUNCE)
+            res[u] = self.broker.publish_user(self.userid, str(rcpt),
+                {
+                    'mime' : str(mime),
+                    'flags' : flags
+                },
+                content, broker.MSG_ACK_BOUNCE)
         return res
 
     def ack_message(self, tx_id, messages):
         '''User acknowledged one or more messages.'''
-        res = {}
-        for _msgid in messages:
-            msgid = str(_msgid)
-            res[msgid] = self.broker.ack_user(self.userid, msgid)
-        return res
+        return self.broker.ack_user(self.userid, messages)
 
     def _incoming(self, data, unused = None):
         '''Internal queue worker.'''
-        # TODO TODO TODO
+        # TODO check for missing keys
         print "incoming message:", data
         a = c2s.NewMessage()
         a.message_id = data['messageid']
         a.original_id = data['originalid']
+        # TODO format timestamp :D
+        a.timestamp = time.strftime('%Y-%m-%d %H:%M:%S %z', time.localtime(data['timestamp']))
         a.sender = data['sender']
-        a.mime = 'undefined'
-        a.encrypted = False
-        a.content = 'AOOAOAOAOAO'
+        a.mime = data['headers']['mime']
+        a.flags.extend(data['headers']['flags'])
+        a.content = data['payload']
         self.protocol.sendBox(a)
 
 

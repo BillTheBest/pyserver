@@ -70,16 +70,24 @@ class C2SServerProtocol(InternalServerProtocol):
                     data.content)
                 for userid, msgid in res.iteritems():
                     me = r.entry.add()
-                    me.status = c2s.MessageSent.STATUS_SUCCESS
+                    me.status = c2s.MessagePostResponse.MessageSent.STATUS_SUCCESS
                     me.user_id = userid
                     me.message_id = msgid
 
         elif name == 'MessageAckRequest':
             r = c2s.MessageAckResponse()
             res = self.service.ack_message(tx_id, tuple(data.message_id))
-            for msgid in res:
-                print "ack message %s" % msgid
-                # TODO TODO TODO
+            for _msgid in data.message_id:
+                msgid = str(_msgid)
+                e = r.entry.add()
+                e.message_id = msgid
+                try:
+                    if success:
+                        e.status = c2s.MessageAckResponse.Entry.STATUS_SUCCESS
+                    else:
+                        e.status = c2s.MessageAckResponse.Entry.STATUS_NOTFOUND
+                except:
+                    e.status = c2s.MessageAckResponse.Entry.STATUS_ERROR
 
         if r:
             self.sendBox(r, tx_id)

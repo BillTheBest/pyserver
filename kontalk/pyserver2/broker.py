@@ -32,7 +32,7 @@ import version
 import kontalk.config as config
 from kontalklib import database, utils
 from kontalklib.utils import PersistentDict
-from txrdq import ResizableDispatchQueue, PersistentDispatchQueue
+from txrdq import ResizableDispatchQueue
 
 
 class MessageStorage:
@@ -147,7 +147,7 @@ class MessageBroker:
         service.setServiceParent(self.application)
 
     def _usermsg_worker(self, msg):
-        userid = msg['userid']
+        userid = msg['recipient']
         need_ack = msg['need_ack']
         #print "queue data for user %s (need_ack=%s)" % (userid, need_ack)
 
@@ -159,13 +159,13 @@ class MessageBroker:
                     # branch the message :)
                     outmsg['messageid'] = self.message_id()
                     outmsg['originalid'] = msg['messageid']
-                    outmsg['userid'] += resource
+                    outmsg['recipient'] += resource
 
                     # store to disk (if need_ack)
                     if need_ack:
                         try:
                             #print "storing message %s to disk" % outmsg['messageid']
-                            self._storage.deliver(outmsg['userid'], outmsg)
+                            self._storage.deliver(outmsg['recipient'], outmsg)
                         except:
                             # TODO handle errors
                             import traceback
@@ -253,14 +253,11 @@ class MessageBroker:
             for msgid, msg in stored.iteritems():
                 self._usermsg_worker(msg)
 
-    def publish_user(self, sender, userid, msg, need_ack = MSG_ACK_NONE):
+    def publish_user(self, sender, userid, headers = None, msg = None, need_ack = MSG_ACK_NONE):
         '''Publish a message to a user, either generic or specific.'''
 
-        if len(userid) == utils.USERID_LENGTH:
-            uhash, resource = userid, None
-        elif len(userid) == utils.USERID_LENGTH_RESOURCE:
-            uhash, resource = self.split_userid(userid)
-        else:
+        # TODO many other checks
+        if len(userid) != utils.USERID_LENGTH and len(userid) != utils.USERID_LENGTH_RESOURCE:
             print "invalid userid format: %s" % userid
             # TODO should we throw an exception here?
             return None
@@ -270,9 +267,10 @@ class MessageBroker:
         outmsg = {
             'messageid' : msg_id,
             'sender' : sender,
-            'userid' : userid,
+            'recipient' : userid,
             'timestamp' : time.time(),
             'need_ack' : need_ack,
+            'headers' : headers,
             'payload' : msg
         }
 
@@ -281,24 +279,44 @@ class MessageBroker:
 
         return msg_id
 
-    def ack_user(self, sender, msgid):
+    def ack_user(self, sender, msgid_list):
         '''Manually acknowledge a message.'''
 
-        # retrieve the message that needs to be acknowledged
+        # result returned to the confirming client
+        res = {}
+        # message receipts grouped by recipient
+        rcpt_list = {}
+
+        # retrieve the messages that needs to be acknowledged
         db = self._storage.load(sender)
-        try:
-            msg = db[msgid]
-            print "found message to be acknowledged - %s" % msgid
 
-            # push the receipt back to the sender
-            if msg['need_ack'] == MSG_ACK_BOUNCE:
-                # TODO prepare a message receipt and push it
-                pass
+        for msgid in msgid_list:
+            try:
+                if msg['need_ack'] == MSG_ACK_BOUNCE:
+                    msg = db[msgid]
+                    print "found message to be acknowledged - %s" % msgid
+                    # create the message if not already done
+                    backuser = msg['sender']
+                    if backuser not in rcpt_list:
+                        rcpt_list[backuser] = c2s.ReceiptMessage()
 
-            # delete the message from the recipient mailbox
-            del db[msgid]
-            db.sync()
-        except:
-            import traceback
-            traceback.print_exc()
-            return False
+                    e = rcpt_list[backuser].entry.add()
+                    e.message_id = msgid
+                    e.status = c2s.ReceiptStatus.Entry.STATUS_SUCCESS
+                    e.timestamp = time.strftime('%Y-%m-%d %H:%M:%S %z')
+
+                res[msgid] = True
+
+            except:
+                print "message not found - %s" % msgid
+                res[msgid] = False
+
+        # push the receipts back to the senders
+        for backuser, r in rcpt_list.iteritems():
+            if self.publish_user(sender, backuser, { 'mime' : 'r', flags : {} }, r.SerializeToString(), MSG_ACK_MANUAL):
+                # it's safe to delete the messages now
+                for e in r.entry:
+                    del db[e.message_id]
+                db.sync()
+
+        return res
