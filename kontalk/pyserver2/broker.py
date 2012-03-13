@@ -21,6 +21,7 @@
 import os, socket, time
 from Queue import Queue
 import pickle, shelve
+import logging as log
 
 from twisted.application import internet, service
 from twisted.internet.defer import Deferred
@@ -28,85 +29,11 @@ from twisted.internet.defer import Deferred
 # local imports
 from channels import *
 from broker_twisted import *
-import version
-import kontalk.config as config
-from kontalklib import database, utils
-from kontalklib.utils import PersistentDict
+import version, storage
 from txrdq import ResizableDispatchQueue
 
-
-class MessageStorage:
-    '''Map of mailbox storages.'''
-    _mboxes = {}
-
-    def __init__(self, path):
-        self._path = path
-
-    def get_storage(self, uid, flag = 'c', force = False, cache = True):
-        if uid not in self._mboxes or force:
-            try:
-                os.makedirs(self._path)
-            except:
-                pass
-            db = PersistentDict(os.path.join(self._path, uid + '.mbox'), flag)
-            if not cache:
-                return db
-            self._mboxes[uid] = db
-        return self._mboxes[uid]
-
-    def get_timestamp(self, uid):
-        '''Retrieves the timestamp of a mailbox.'''
-        # TODO
-        pass
-
-    def stop(self, uid):
-        '''Stops a storage for a userid.'''
-        is_generic = (len(uid) == utils.USERID_LENGTH)
-        # avoid creating a useless mbox
-        utils.touch(os.path.join(self._path, uid + '.mbox'), is_generic)
-        # also touch the generic mbox
-        if not is_generic:
-            utils.touch(os.path.join(self._path, uid[:utils.USERID_LENGTH] + '.mbox'))
-
-    def load(self, uid):
-        try:
-            return self.get_storage(uid, 'r', False, False)
-        except:
-            return None
-
-    def store(self, uid, msg, force = False):
-        '''Used to persist a message.'''
-        db = self.get_storage(uid)
-        if msg['messageid'] not in db or force:
-            db[msg['messageid']] = msg
-            db.sync()
-
-    def deliver(self, userid, msg, force = False):
-        '''Used to persist a message that was intended to a generic userid.'''
-
-        # store the new message
-        db = self.get_storage(userid)
-        if msg['messageid'] not in db or force:
-            db[msg['messageid']] = msg
-            db.sync()
-
-        # delete the old message in the generic user mailbox
-        db = self.get_storage(userid[:utils.USERID_LENGTH])
-        try:
-            del db[msg['originalid']]
-            db.sync()
-        except:
-            pass
-
-    def delete(self, uid, msgid):
-        '''Deletes a single message.'''
-        try:
-            db = self.get_storage(uid)
-            del db[msgid]
-            db.sync()
-        except:
-            import traceback
-            traceback.print_exc()
+import kontalk.config as config
+from kontalklib import database, utils
 
 
 # no ack is required
@@ -123,16 +50,16 @@ class MessageBroker:
     '''Map of the queue consumers.
     Queues in this map will contain the collection of workers for specific userids.'''
     _consumers = {}
-    '''The messages storage.'''
-    _storage = MessageStorage(config.config['broker']['storage_path'])
 
     def __init__(self, application):
         self.application = application
+        self._storage = config.config['broker']['storage'][0](*config.config['broker']['storage'][1:])
 
     def setup(self):
         # estabilish a connection to the database
         self.db = database.connect_config(config.config)
-        self.servers = self.db.servers()
+        # datasource it will not be used if not neededs
+        self._storage.set_datasource(self.db)
 
         # create listening service for clients
         factory = InternalServerFactory(C2SServerProtocol, C2SChannel, self)
@@ -149,7 +76,7 @@ class MessageBroker:
     def _usermsg_worker(self, msg):
         userid = msg['recipient']
         need_ack = msg['need_ack']
-        #print "queue data for user %s (need_ack=%s)" % (userid, need_ack)
+        #log.debug("queue data for user %s (need_ack=%s)" % (userid, need_ack))
 
         # generic user, post to every consumer
         if len(userid) == utils.USERID_LENGTH:
@@ -164,7 +91,7 @@ class MessageBroker:
                     # store to disk (if need_ack)
                     if need_ack:
                         try:
-                            #print "storing message %s to disk" % outmsg['messageid']
+                            #log.debug("storing message %s to disk" % outmsg['messageid'])
                             self._storage.deliver(outmsg['recipient'], outmsg)
                         except:
                             # TODO handle errors
@@ -175,7 +102,7 @@ class MessageBroker:
                     q.put(outmsg)
 
             except:
-                print "warning: no listener to deliver message!"
+                log.debug("warning: no listener to deliver message!")
                 # store to temporary spool
                 self._storage.store(userid, msg)
 
@@ -185,7 +112,7 @@ class MessageBroker:
             # store to disk (if need_ack)
             if need_ack:
                 try:
-                    #print "storing message %s to disk" % msg['messageid']
+                    #log.debug("storing message %s to disk" % msg['messageid'])
                     self._storage.store(userid, msg)
                 except:
                     # TODO handle errors
@@ -196,10 +123,10 @@ class MessageBroker:
                 # send to client consumer
                 self._consumers[uhash][resource].put(msg)
             except:
-                print "warning: no listener to deliver message to resource %s!" % resource
+                log.debug("warning: no listener to deliver message to resource %s!" % resource)
 
         else:
-            print "warning: unknown userid format %s" % userid
+            log.warn("warning: unknown userid format %s" % userid)
 
     def register_user_consumer(self, userid, worker):
         uhash, resource = self.split_userid(userid)
@@ -258,7 +185,7 @@ class MessageBroker:
 
         # TODO many other checks
         if len(userid) != utils.USERID_LENGTH and len(userid) != utils.USERID_LENGTH_RESOURCE:
-            print "invalid userid format: %s" % userid
+            log.warn("invalid userid format: %s" % userid)
             # TODO should we throw an exception here?
             return None
 
@@ -294,29 +221,45 @@ class MessageBroker:
             try:
                 msg = db[msgid]
                 if msg['need_ack'] == MSG_ACK_BOUNCE:
-                    print "found message to be acknowledged - %s" % msgid
-                    # create the message if not already done
+                    log.debug("found message to be acknowledged - %s" % msgid)
+
+                    # group receipts by user so we can batch send
                     backuser = msg['sender']
                     if backuser not in rcpt_list:
-                        rcpt_list[backuser] = c2s.ReceiptMessage()
+                        rcpt_list[backuser] = []
 
-                    e = rcpt_list[backuser].entry.add()
-                    e.message_id = msgid
-                    e.status = c2s.ReceiptMessage.Entry.STATUS_SUCCESS
-                    e.timestamp = time.strftime('%Y-%m-%d %H:%M:%S %z')
+                    e = {
+                        'messageid' : msgid if 'originalid' not in msg else msg['originalid'],
+                        'storageid' : msgid,
+                        'status' : c2s.ReceiptMessage.Entry.STATUS_SUCCESS,
+                        'timestamp' : time.strftime('%Y-%m-%d %H:%M:%S %z')
+                    }
+                    rcpt_list[backuser].append(e)
 
                 res[msgid] = True
 
             except:
-                print "message not found - %s" % msgid
+                log.debug("message not found - %s" % msgid)
                 res[msgid] = False
 
         # push the receipts back to the senders
-        for backuser, r in rcpt_list.iteritems():
-            if self.publish_user(sender, backuser, { 'mime' : 'r', 'flags' : {} }, r.SerializeToString(), MSG_ACK_MANUAL):
-                # it's safe to delete the messages now
-                for e in r.entry:
-                    del db[e.message_id]
-                db.sync()
+        for backuser, msglist in rcpt_list.iteritems():
+            r = c2s.ReceiptMessage()
+            for m in msglist:
+                e = r.entry.add()
+                e.message_id = m['messageid']
+                e.status = m['status']
+                e.timestamp = m['timestamp']
+
+            if not self.publish_user(sender, backuser, { 'mime' : 'r', 'flags' : {} }, r.SerializeToString(), MSG_ACK_MANUAL):
+                # mark the messages NOT SAFE to delete
+                for m in msglist:
+                    res[m['storageid']] = False
+
+        # it's safe to delete the messages now
+        for msgid, safe in res.iteritems():
+            if safe:
+                del db[msgid]
+        db.sync()
 
         return res

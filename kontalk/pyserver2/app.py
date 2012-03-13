@@ -42,4 +42,4 @@ class Pyserver2App:
         return self.application
 
     def print_version(self):
-        log.info("%s version %s", NAME, VERSION)
+        log.info("%s version %s" % (NAME, VERSION))

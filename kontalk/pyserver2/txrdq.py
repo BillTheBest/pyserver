@@ -151,13 +151,13 @@ class PersistentDispatchQueue(ResizableDispatchQueue):
         return d
 
     def stop(self):
-        print "stopping queue (cleaning %s)" % self._filename
+        #log.debug("stopping queue (cleaning %s)" % self._filename)
         ResizableDispatchQueue.stop(self)
         self._file.close()
         os.remove(self._filename)
 
     def _sync(self):
-        print "writing down %d elements to %s" % (len(self.elements), self._filename)
+        #log.debug("writing down %d elements to %s" % (len(self.elements), self._filename))
         if not self._file:
             self._file = open(self._filename, 'wb')
         self._file.seek(0)

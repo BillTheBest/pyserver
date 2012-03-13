@@ -20,6 +20,8 @@
 
 
 import time
+import logging as log
+
 from kontalklib import token
 import kontalk.config as config
 import kontalklib.c2s_pb2 as c2s
@@ -37,20 +39,28 @@ class C2SChannel:
         self.broker = broker
 
     def connected(self):
-        # TODO
-        print "connected!"
+        addr = self.protocol.transport.getPeer()
+        log.debug("new client connection from %s" % addr.host)
 
     def disconnected(self):
-        print "disconnected."
         if self.userid:
+            addr = self.protocol.transport.getPeer()
+            log.debug("user %s (%s) disconnected." % (self.userid, addr.host))
             self.broker.unregister_user_consumer(self.userid)
+        else:
+            log.debug("disconnected.")
 
     def authenticate(self, tx_id, auth_token):
         '''Client tried to authenticate.'''
-        print "[%s] authenticating token: %s" % (tx_id, auth_token)
-        userid = token.verify_user_token(auth_token, self.broker.db.servers(), config.config['server']['fingerprint'])
+        log.debug("[%s] authenticating token: %s" % (tx_id, auth_token))
+        try:
+            userid = token.verify_user_token(auth_token, self.broker.db.servers(), config.config['server']['fingerprint'])
+        except:
+            log.debug("[%s] token verification failed!" % (tx_id))
+            userid = None
+
         if userid:
-            print "[%s] user %s logged in." % (tx_id, userid)
+            log.debug("[%s] user %s logged in." % (tx_id, userid))
             self.userid = userid
             self.broker.register_user_consumer(userid, self._incoming)
             return True
@@ -59,8 +69,8 @@ class C2SChannel:
 
     def post_message(self, tx_id, recipient = None, mime = None, flags = None, content = None):
         '''User posted a message.'''
-        print "[%s] posting message for: %s (mime=%s, flags=%s)" % \
-            (tx_id, str(recipient), mime, str(flags))
+        log.debug("[%s] posting message for: %s (mime=%s, flags=%s)" % \
+            (tx_id, str(recipient), mime, str(flags)))
         res = {}
         for rcpt in recipient:
             u = str(rcpt)
@@ -79,12 +89,11 @@ class C2SChannel:
     def _incoming(self, data, unused = None):
         '''Internal queue worker.'''
         # TODO check for missing keys
-        print "incoming message:", data
+        log.debug("incoming message: %s" % data)
         a = c2s.NewMessage()
         a.message_id = data['messageid']
         if 'original_id' in data:
             a.original_id = data['originalid']
-        # TODO format timestamp :D
         a.timestamp = time.strftime('%Y-%m-%d %H:%M:%S %z', time.localtime(data['timestamp']))
         a.sender = data['sender']
         a.mime = data['headers']['mime']
@@ -107,20 +116,20 @@ class S2SChannel:
 
     def connected(self):
         # TODO
-        print "connected!"
+        log.debug("connected!")
 
     def disconnected(self):
-        print "disconnected."
+        log.debug("disconnected.")
         if self.fingerprint:
             self.broker.unregister_server_queue(self.fingerprint)
 
     """
     TODO
     def handshake(self, tx_id, auth_token):
-        print "authenticating token: %s" % auth_token
+        log.debug("authenticating token: %s" % auth_token)
         userid = token.verify_user_token(auth_token, self.broker.db.servers(), config.config['server']['fingerprint'])
         if userid:
-            print "user %s logged in." % userid
+            log.debug("server %s logged in." % userid)
             self.userid = userid
             self.broker.register_user_queue(userid, self._incoming)
             return True
@@ -130,4 +139,4 @@ class S2SChannel:
 
     def _incoming(self, data):
         # TODO
-        print "incoming message:", data
+        log.debug("incoming message:", data)

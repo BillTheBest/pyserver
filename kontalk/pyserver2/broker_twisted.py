@@ -51,8 +51,6 @@ class C2SServerProtocol(InternalServerProtocol):
         txprotobuf.Protocol.__init__(self, c2s)
 
     def boxReceived(self, data, tx_id = None):
-        #print "box received: " + data.__class__.__name__
-
         # optional reply
         r = None
         name = data.__class__.__name__
@@ -82,11 +80,14 @@ class C2SServerProtocol(InternalServerProtocol):
                 e = r.entry.add()
                 e.message_id = msgid
                 try:
+                    success = res[msgid]
                     if success:
                         e.status = c2s.MessageAckResponse.Entry.STATUS_SUCCESS
                     else:
                         e.status = c2s.MessageAckResponse.Entry.STATUS_NOTFOUND
                 except:
+                    import traceback
+                    traceback.print_exc()
                     e.status = c2s.MessageAckResponse.Entry.STATUS_ERROR
 
         if r:

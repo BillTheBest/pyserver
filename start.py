@@ -23,7 +23,6 @@ import logging as log
 
 from kontalk.pyserver2 import app
 
-
 # configure logging
 FORMAT = '[%(asctime)s:%(levelname)s] %(message)s'
 log.basicConfig(format=FORMAT, datefmt='%Y-%m-%d %H:%M:%S', level=log.DEBUG)
