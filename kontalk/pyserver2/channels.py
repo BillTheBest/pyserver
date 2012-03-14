@@ -57,8 +57,10 @@ class C2SChannel:
         '''Client tried to authenticate.'''
         log.debug("[%s] authenticating token: %s" % (tx_id, auth_token))
         try:
-            userid = token.verify_user_token(auth_token, self.broker.db.servers(), config.config['server']['fingerprint'])
+            userid = token.verify_user_token(auth_token, database.servers(self.broker.db), config.config['server']['fingerprint'])
         except:
+            import traceback
+            traceback.print_exc()
             log.debug("[%s] token verification failed!" % (tx_id))
             userid = None
 
