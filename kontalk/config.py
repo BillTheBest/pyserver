@@ -10,6 +10,14 @@ config = {
         'c2s.bind' : ('localhost', 5554),
         's2s.bind' : ('localhost', 5556)
     },
+    'registration' : {
+        'type' : 'sms',
+        #'from' : 'Kontalk',
+        'from' : '12345',
+        'nx.username' : 'key',
+        'nx.password' : 'secret',
+        'android_emu' : True
+    },
     'broker' : {
         'storage' : (
             storage.PersistentDictStorage,

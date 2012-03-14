@@ -22,7 +22,7 @@
 import time
 import logging as log
 
-from kontalklib import token
+from kontalklib import token, database, utils
 import kontalk.config as config
 import kontalklib.c2s_pb2 as c2s
 
@@ -49,6 +49,9 @@ class C2SChannel:
             self.broker.unregister_user_consumer(self.userid)
         else:
             log.debug("disconnected.")
+
+    def is_logged(self):
+        return self.userid != None
 
     def authenticate(self, tx_id, auth_token):
         '''Client tried to authenticate.'''
@@ -86,10 +89,97 @@ class C2SChannel:
         '''User acknowledged one or more messages.'''
         return self.broker.ack_user(self.userid, messages)
 
+    def validate_user(self, tx_id, code):
+        if not code or len(code) != utils.VALIDATION_CODE_LENGTH:
+            return c2s.ValidationResponse.STATUS_FAILED, None
+
+        # lookup the verification code
+        valdb = database.validations(self.broker.db)
+
+        userid = valdb.get_userid(code)
+        if userid:
+            # delete verification entry in validations table
+            valdb.delete(code)
+
+            # here is your token
+            str_token = token.user_token(userid,
+                config.config['server']['fingerprint'])
+            return c2s.ValidationResponse.STATUS_SUCCESS, str_token
+
+        else:
+            return c2s.ValidationResponse.STATUS_FAILED, None
+
+    def register_user(self, tx_id, username):
+        log.debug("registering username %s" % username)
+        if config.config['registration']['type'] == 'sms':
+            res = self._register_sms(username)
+            d = { 'status' : res }
+            if res == c2s.RegistrationResponse.STATUS_CONTINUE:
+                    d['sms_from'] = config.config['registration']['from']
+            return d
+
+        else:
+            # TODO support for other registration types
+            return { 'status' : c2s.RegistrationResponse.STATUS_ERROR }
+
+    def _register_sms(self, n):
+        # validate phone number syntax
+        if not n or len(n.strip()) == 0:
+            log.debug("number empty - %s" % n)
+            return c2s.RegistrationResponse.STATUS_INVALID_USERNAME
+
+        phone = phone_num = n.strip()
+        # exclude the initial plus to verify the digits
+        if (phone[0] == '+'):
+            phone_num = phone[1:]
+
+        # not all digits...
+        if not phone_num.isdigit():
+            log.debug("number is not all-digits - %s" % phone_num)
+            return c2s.RegistrationResponse.STATUS_INVALID_USERNAME
+
+        # replace double-zero with plus
+        if phone[0:2] == '00':
+            phone = '+' + phone[2:]
+
+        # insert validation record
+        valdb = database.validations(self.broker.db)
+        userid = utils.sha1(phone) + utils.rand_str(8, utils.CHARSBOX_AZN_UPPERCASE)
+        ret = valdb.update(userid)
+        if ret[0] > 0:
+            # send SMS
+            code = ret[1]
+            sms_from = config.config['registration']['from']
+
+            if config.config['registration']['android_emu']:
+                # android emulation
+                import os
+                os.system('adb emu sms send %s %s' % (sms_from, code))
+            else:
+                # send sms
+                from nexmomessage import NexmoMessage
+                msg = {
+                    'reqtype' : 'json',
+                    'username' : config.config['registration']['nx.username'],
+                    'password': config.config['registration']['nx.password'],
+                    'from': sms_from,
+                    'to': phone
+                }
+                sms = NexmoMessage(msg)
+                # FIXME send just the code for now
+                sms.set_text_info(code)
+                sms.send_request()
+
+            return c2s.RegistrationResponse.STATUS_CONTINUE
+        else:
+            return c2s.RegistrationResponse.STATUS_ERROR
+
+
     def _incoming(self, data, unused = None):
         '''Internal queue worker.'''
         # TODO check for missing keys
         log.debug("incoming message: %s" % data)
+        # TODO avoid using c2s directly; instead create a method in C2SServerProtocol
         a = c2s.NewMessage()
         a.message_id = data['messageid']
         if 'original_id' in data:
