@@ -184,8 +184,9 @@ class C2SChannel:
         # TODO avoid using c2s directly; instead create a method in C2SServerProtocol
         a = c2s.NewMessage()
         a.message_id = data['messageid']
-        if 'original_id' in data:
+        if 'originalid' in data:
             a.original_id = data['originalid']
+        # TODO time zone
         a.timestamp = time.strftime('%Y-%m-%d %H:%M:%S %z', time.localtime(data['timestamp']))
         a.sender = data['sender']
         a.mime = data['headers']['mime']
