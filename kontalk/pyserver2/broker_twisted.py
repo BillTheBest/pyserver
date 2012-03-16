@@ -117,6 +117,18 @@ class C2SServerProtocol(InternalServerProtocol):
                 if token:
                     r.token = token
 
+        elif name == 'UserLookupRequest':
+            if self.service.is_logged():
+                r = c2s.UserLookupResponse()
+                found = self.service.lookup_users(tx_id, tuple(data.user_id))
+                for u in found:
+                    e = r.entry.add()
+                    e.user_id = u['userid']
+                    if 'status' in u:
+                        e.status = u['status']
+                    if 'timestamp' in u:
+                        e.timestamp = u['timestamp']
+
         if r:
             self.sendBox(r, tx_id)
 

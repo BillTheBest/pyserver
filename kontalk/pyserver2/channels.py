@@ -91,6 +91,13 @@ class C2SChannel:
         '''User acknowledged one or more messages.'''
         return self.broker.ack_user(self.userid, messages)
 
+    def lookup_users(self, tx_id, users):
+        # TODO real lookup please :D
+        ret = []
+        for u in users:
+            ret.append({'userid' : str(u)})
+        return ret
+
     def validate_user(self, tx_id, code):
         if not code or len(code) != utils.VALIDATION_CODE_LENGTH:
             return c2s.ValidationResponse.STATUS_FAILED, None
