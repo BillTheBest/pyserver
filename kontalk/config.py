@@ -22,7 +22,10 @@ config = {
         'storage' : (
             storage.PersistentDictStorage,
             '/tmp/kontalk'
-        )
+        ),
+        # messages bigger than this size will be stored in the filesystem
+        'filesystem.threshold' : 204800,
+        'filesystem.download.url' : 'http://10.0.2.2/messenger/download.php?name=%s'
     },
     'database' : {
         'host' : 'localhost',

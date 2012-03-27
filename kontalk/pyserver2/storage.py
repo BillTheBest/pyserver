@@ -55,6 +55,10 @@ class MessageStorage:
         '''Deletes a single message.'''
         pass
 
+    def extra_storage(self, content, name = None):
+        '''Store a big file in the storage system.'''
+        pass
+
 
 class PersistentDictStorage(MessageStorage):
     '''PersistentDict-based message storage.'''
@@ -65,13 +69,18 @@ class PersistentDictStorage(MessageStorage):
     def __init__(self, path):
         log.debug("init dict-based storage on %s" % path)
         self._path = path
+        try:
+            os.makedirs(self._path)
+        except:
+            pass
+        self._extra_path = os.path.join(path, 'extra')
+        try:
+            os.makedirs(self._extra_path)
+        except:
+            pass
 
     def _get_storage(self, uid, flag = 'c', force = False, cache = True):
         if uid not in self._mboxes or force:
-            try:
-                os.makedirs(self._path)
-            except:
-                pass
             db = utils.PersistentDict(os.path.join(self._path, uid + '.mbox'), flag)
             if not cache:
                 return db
@@ -126,6 +135,15 @@ class PersistentDictStorage(MessageStorage):
             import traceback
             traceback.print_exc()
 
+    def extra_storage(self, content, name = None):
+        if not name:
+            name = utils.rand_str(40)
+        filename = os.path.join(self._extra_path, name)
+        f = open(filename, 'w')
+        f.write(content)
+        f.close()
+        return (filename, name)
+
 
 class MySQLStorage(MessageStorage):
     '''MySQL-based message storage.'''
@@ -158,4 +176,8 @@ class MySQLStorage(MessageStorage):
 
     def delete(self, uid, msgid):
         '''Deletes a single message.'''
+        pass
+
+    def extra_storage(self, content, name = None):
+        '''Store a big file in the storage system.'''
         pass

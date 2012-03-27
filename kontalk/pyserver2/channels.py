@@ -76,15 +76,27 @@ class C2SChannel:
         '''User posted a message.'''
         log.debug("[%s] posting message for: %s (mime=%s, flags=%s)" % \
             (tx_id, str(recipient), mime, str(flags)))
+
+        # create preview content if message is bigger than expected
+        if len(content) > config.config['broker']['filesystem.threshold']:
+            log.debug("[%s] message too big, storing to filesystem" % tx_id)
+            # drop contents to filesystem
+            (filename, fileid) = self.broker.storage.extra_storage(content)
+            content = utils.generate_preview_content(filename, mime)
+        else:
+            (filename, fileid) = (False, False)
+
         res = {}
         for rcpt in recipient:
             u = str(rcpt)
-            res[u] = self.broker.publish_user(self.userid, str(rcpt),
-                {
-                    'mime' : str(mime),
-                    'flags' : flags
-                },
-                content, broker.MSG_ACK_BOUNCE)
+            misc = {
+                'mime' : mime,
+                'flags' : flags
+            }
+            if filename:
+                misc['filename'] = fileid
+
+            res[u] = self.broker.publish_user(self.userid, u, misc, content, broker.MSG_ACK_BOUNCE)
         return res
 
     def ack_message(self, tx_id, messages):
@@ -199,6 +211,8 @@ class C2SChannel:
         a.mime = data['headers']['mime']
         a.flags.extend(data['headers']['flags'])
         a.content = data['payload']
+        if 'filename' in data:
+            a.url = config.config['broker']['filesystem.download.url'] % data['filename']
         self.protocol.sendBox(a)
 
 

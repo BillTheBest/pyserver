@@ -53,13 +53,13 @@ class MessageBroker:
 
     def __init__(self, application):
         self.application = application
-        self._storage = config.config['broker']['storage'][0](*config.config['broker']['storage'][1:])
+        self.storage = config.config['broker']['storage'][0](*config.config['broker']['storage'][1:])
 
     def setup(self):
         # estabilish a connection to the database
         self.db = database.connect_config(config.config)
         # datasource it will not be used if not neededs
-        self._storage.set_datasource(self.db)
+        self.storage.set_datasource(self.db)
 
         # create listening service for clients
         factory = InternalServerFactory(C2SServerProtocol, C2SChannel, self)
@@ -92,7 +92,7 @@ class MessageBroker:
                     if need_ack:
                         try:
                             #log.debug("storing message %s to disk" % outmsg['messageid'])
-                            self._storage.deliver(outmsg['recipient'], outmsg)
+                            self.storage.deliver(outmsg['recipient'], outmsg)
                         except:
                             # TODO handle errors
                             import traceback
@@ -104,7 +104,7 @@ class MessageBroker:
             except:
                 log.debug("warning: no listener to deliver message!")
                 # store to temporary spool
-                self._storage.store(userid, msg)
+                self.storage.store(userid, msg)
 
         elif len(userid) == utils.USERID_LENGTH_RESOURCE:
             uhash, resource = self.split_userid(userid)
@@ -113,7 +113,7 @@ class MessageBroker:
             if need_ack:
                 try:
                     #log.debug("storing message %s to disk" % msg['messageid'])
-                    self._storage.store(userid, msg)
+                    self.storage.store(userid, msg)
                 except:
                     # TODO handle errors
                     import traceback
@@ -157,7 +157,7 @@ class MessageBroker:
 
         try:
             # end user storage
-            self._storage.stop(userid)
+            self.storage.stop(userid)
             # stop previous queue if any
             self._consumers[uhash][resource].stop()
             del self._consumers[uhash][resource]
@@ -174,7 +174,7 @@ class MessageBroker:
         return utils.rand_str(30)
 
     def _reload_usermsg_queue(self, uid):
-        stored = dict(self._storage.load(uid))
+        stored = dict(self.storage.load(uid))
         if stored:
             # requeue messages
             for msgid, msg in stored.iteritems():
@@ -215,7 +215,7 @@ class MessageBroker:
         rcpt_list = {}
 
         # retrieve the messages that needs to be acknowledged
-        db = self._storage.load(sender)
+        db = self.storage.load(sender)
 
         for msgid in msgid_list:
             try:

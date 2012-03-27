@@ -47,7 +47,7 @@ class S2SServerProtocol(InternalServerProtocol):
 
 class C2SServerProtocol(InternalServerProtocol):
     # max length: 200 KB
-    MAX_LENGTH = 204800
+    #MAX_LENGTH = 204800
 
     def __init__(self):
         txprotobuf.Protocol.__init__(self, c2s)
@@ -58,15 +58,15 @@ class C2SServerProtocol(InternalServerProtocol):
         name = data.__class__.__name__
         if name == 'AuthenticateRequest':
             r = c2s.AuthenticateResponse()
-            r.valid = self.service.authenticate(tx_id, data.token)
+            r.valid = self.service.authenticate(str(tx_id), data.token)
 
         elif name == 'MessagePostRequest':
             if self.service.is_logged():
                 r = c2s.MessagePostResponse()
                 if len(data.recipient) > 0:
-                    res = self.service.post_message(tx_id,
+                    res = self.service.post_message(str(tx_id),
                         tuple(data.recipient),
-                        data.mime,
+                        str(data.mime),
                         tuple(data.flags),
                         data.content)
                     for userid, msgid in res.iteritems():
@@ -81,7 +81,7 @@ class C2SServerProtocol(InternalServerProtocol):
         elif name == 'MessageAckRequest':
             if self.service.is_logged():
                 r = c2s.MessageAckResponse()
-                res = self.service.ack_message(tx_id, tuple(data.message_id))
+                res = self.service.ack_message(str(tx_id), tuple(data.message_id))
                 for _msgid in data.message_id:
                     msgid = str(_msgid)
                     e = r.entry.add()
@@ -100,7 +100,7 @@ class C2SServerProtocol(InternalServerProtocol):
         elif name == 'RegistrationRequest':
             if not self.service.is_logged():
                 r = c2s.RegistrationResponse()
-                res = self.service.register_user(tx_id, str(data.username))
+                res = self.service.register_user(str(tx_id), str(data.username))
                 r.status = res['status']
                 if 'token' in res:
                     r.token = res['token']
@@ -112,7 +112,7 @@ class C2SServerProtocol(InternalServerProtocol):
         elif name == 'ValidationRequest':
             if not self.service.is_logged():
                 r = c2s.ValidationResponse()
-                res, token = self.service.validate_user(tx_id, str(data.validation_code))
+                res, token = self.service.validate_user(str(tx_id), str(data.validation_code))
                 r.status = res
                 if token:
                     r.token = token
@@ -120,7 +120,7 @@ class C2SServerProtocol(InternalServerProtocol):
         elif name == 'UserLookupRequest':
             if self.service.is_logged():
                 r = c2s.UserLookupResponse()
-                found = self.service.lookup_users(tx_id, tuple(data.user_id))
+                found = self.service.lookup_users(str(tx_id), tuple(data.user_id))
                 for u in found:
                     e = r.entry.add()
                     e.user_id = u['userid']
