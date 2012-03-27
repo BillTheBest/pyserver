@@ -22,6 +22,7 @@ from twisted.internet.protocol import ServerFactory, connectionDone
 
 from kontalklib import txprotobuf
 
+import kontalk.config as config
 import kontalklib.c2s_pb2 as c2s
 import kontalklib.s2s_pb2 as s2s
 
@@ -39,6 +40,7 @@ class S2SServerProtocol(InternalServerProtocol):
 
     def __init__(self):
         txprotobuf.Protocol.__init__(self, s2s)
+        self.MAX_LENGTH = config.config['server']['s2s.pack_size_max']
 
     def boxReceived(self, data, tx_id = None):
         # TODO
@@ -51,6 +53,7 @@ class C2SServerProtocol(InternalServerProtocol):
 
     def __init__(self):
         txprotobuf.Protocol.__init__(self, c2s)
+        self.MAX_LENGTH = config.config['server']['c2s.pack_size_max']
 
     def boxReceived(self, data, tx_id = None):
         # optional reply

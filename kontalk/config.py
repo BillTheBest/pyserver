@@ -8,7 +8,9 @@ config = {
     'server' : {
         'fingerprint' : '96072D50F1A0EE5BD8664733F86AAD37AA187333',
         'c2s.bind' : ('localhost', 6126),
-        's2s.bind' : ('localhost', 6127)
+        's2s.bind' : ('localhost', 6127),
+        'c2s.pack_size_max' : 1048576,
+        's2s.pack_size_max' : 10485760
     },
     'registration' : {
         'type' : 'sms',
