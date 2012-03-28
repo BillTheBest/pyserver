@@ -56,6 +56,8 @@ class MessageBroker:
         self.storage = config.config['broker']['storage'][0](*config.config['broker']['storage'][1:])
 
     def setup(self):
+        log.debug("broker init")
+
         # estabilish a connection to the database
         self.db = database.connect_config(config.config)
         # datasource it will not be used if not neededs

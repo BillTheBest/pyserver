@@ -48,8 +48,6 @@ class S2SServerProtocol(InternalServerProtocol):
 
 
 class C2SServerProtocol(InternalServerProtocol):
-    # max length: 200 KB
-    #MAX_LENGTH = 204800
 
     def __init__(self):
         txprotobuf.Protocol.__init__(self, c2s)

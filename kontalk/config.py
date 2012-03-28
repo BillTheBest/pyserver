@@ -9,8 +9,8 @@ config = {
         'fingerprint' : '96072D50F1A0EE5BD8664733F86AAD37AA187333',
         'c2s.bind' : ('localhost', 6126),
         's2s.bind' : ('localhost', 6127),
-        'c2s.pack_size_max' : 1048576,
-        's2s.pack_size_max' : 10485760
+        'c2s.pack_size_max' : 1048576, # 1 MB
+        's2s.pack_size_max' : 10485760 # 10 MB
     },
     'registration' : {
         'type' : 'sms',
@@ -26,7 +26,7 @@ config = {
             '/tmp/kontalk'
         ),
         # messages bigger than this size will be stored in the filesystem
-        'filesystem.threshold' : 204800,
+        'filesystem.threshold' : 102400, # 100 KB
         'filesystem.download.url' : 'http://10.0.2.2/messenger/download.php?name=%s'
     },
     'database' : {
