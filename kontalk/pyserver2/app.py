@@ -25,6 +25,7 @@ from twisted.application import internet, service
 
 from version import *
 from broker import MessageBroker
+from fileserver import Fileserver
 
 
 class Pyserver2App:
@@ -38,6 +39,9 @@ class Pyserver2App:
 
         self.broker = MessageBroker(self.application)
         self.broker.setup()
+
+        self.fileserver = Fileserver(self.application, self.broker)
+        self.fileserver.setup()
 
         return self.application
 

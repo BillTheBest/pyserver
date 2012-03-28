@@ -23,7 +23,7 @@ from Queue import Queue
 import pickle, shelve
 import logging as log
 
-from twisted.application import internet, service
+from twisted.application import internet
 from twisted.internet.defer import Deferred
 
 # local imports
