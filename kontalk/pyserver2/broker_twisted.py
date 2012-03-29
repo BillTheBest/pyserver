@@ -73,9 +73,11 @@ class C2SServerProtocol(InternalServerProtocol):
                     for userid, msgid in res.iteritems():
                         me = r.entry.add()
                         me.user_id = userid
-                        if msgid:
+                        if type(msgid) == str:
                             me.status = c2s.MessagePostResponse.MessageSent.STATUS_SUCCESS
                             me.message_id = msgid
+                        elif msgid:
+                            me.status = msgid
                         else:
                             me.status = c2s.MessagePostResponse.MessageSent.STATUS_ERROR
 

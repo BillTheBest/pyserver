@@ -109,7 +109,7 @@ class MessageBroker:
                 self.storage.store(userid, msg)
 
         elif len(userid) == utils.USERID_LENGTH_RESOURCE:
-            uhash, resource = self.split_userid(userid)
+            uhash, resource = utils.split_userid(userid)
 
             # store to disk (if need_ack)
             if need_ack:
@@ -131,7 +131,7 @@ class MessageBroker:
             log.warn("warning: unknown userid format %s" % userid)
 
     def register_user_consumer(self, userid, worker):
-        uhash, resource = self.split_userid(userid)
+        uhash, resource = utils.split_userid(userid)
 
         try:
             # stop previous queue if any
@@ -155,11 +155,13 @@ class MessageBroker:
         self._reload_usermsg_queue(uhash)
 
     def unregister_user_consumer(self, userid):
-        uhash, resource = self.split_userid(userid)
+        uhash, resource = utils.split_userid(userid)
 
         try:
             # end user storage
             self.storage.stop(userid)
+            # touch user
+            self.storage.touch_user(userid)
             # stop previous queue if any
             self._consumers[uhash][resource].stop()
             del self._consumers[uhash][resource]
@@ -168,9 +170,6 @@ class MessageBroker:
         except:
             import traceback
             traceback.print_exc()
-
-    def split_userid(self, userid):
-        return userid[:utils.USERID_LENGTH], userid[utils.USERID_LENGTH:]
 
     def message_id(self):
         return utils.rand_str(30)
@@ -261,7 +260,7 @@ class MessageBroker:
         # it's safe to delete the messages now
         for msgid, safe in res.iteritems():
             if safe:
-                del db[msgid]
-        db.sync()
+                self.storage.delete(sender, msgid)
+        # can't use sync - it's not valid for all storages - db.sync()
 
         return res

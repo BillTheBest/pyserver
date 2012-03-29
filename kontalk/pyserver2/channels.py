@@ -77,26 +77,41 @@ class C2SChannel:
         log.debug("[%s] posting message for: %s (mime=%s, flags=%s)" % \
             (tx_id, str(recipient), mime, str(flags)))
 
-        # create preview content if message is bigger than expected
-        if len(content) > config.config['broker']['filesystem.threshold']:
-            log.debug("[%s] message too big, storing to filesystem" % tx_id)
-            # drop contents to filesystem
-            (filename, fileid) = self.broker.storage.extra_storage(content)
+        # are we sending an attachment message?
+        attachment = 'attachment' in flags
+        if attachment and mime in config.config['fileserver']['accept_content']:
+            fileid = str(content)
+            # TODO check for errors
+            filename = self.broker.storage.get_extra(fileid)
+            # update userids
+            self.broker.storage.update_extra_storage(fileid, recipient)
+            # TODO risk that the thumbnail to be larger than the max allowed size
             content = utils.generate_preview_content(filename, mime)
-        else:
-            (filename, fileid) = (False, False)
 
         res = {}
         for rcpt in recipient:
             u = str(rcpt)
-            misc = {
-                'mime' : mime,
-                'flags' : flags
-            }
-            if filename:
-                misc['filename'] = fileid
+            length = len(content)
+            mime_supported = mime in config.config['fileserver']['accept_content'] \
+                if attachment else mime in config.config['broker']['accept_content']
+            if not mime_supported:
+                log.debug("[%s] mime type not supported: %s - dropping" % \
+                    (tx_id, mime))
+                res[u] = c2s.MessagePostResponse.MessageSent.STATUS_NOTSUPPORTED
+            elif length > config.config['broker']['max_size']:
+                log.debug("[%s] message too big (%d bytes) - dropping" % \
+                    (tx_id, length))
+                res[u] = c2s.MessagePostResponse.MessageSent.STATUS_BIG
+            else:
+                misc = {
+                    'mime' : mime,
+                    'flags' : flags
+                }
+                if filename:
+                    misc['filename'] = fileid
 
-            res[u] = self.broker.publish_user(self.userid, u, misc, content, broker.MSG_ACK_BOUNCE)
+                res[u] = self.broker.publish_user(self.userid, u, misc, content, broker.MSG_ACK_BOUNCE)
+
         return res
 
     def ack_message(self, tx_id, messages):
@@ -212,7 +227,7 @@ class C2SChannel:
         a.flags.extend(data['headers']['flags'])
         a.content = data['payload']
         if 'filename' in data:
-            a.url = config.config['broker']['filesystem.download.url'] % data['filename']
+            a.url = config.config['fileserver']['download_url'] % data['filename']
         self.protocol.sendBox(a)
 
 

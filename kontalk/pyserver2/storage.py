@@ -19,8 +19,8 @@
 '''
 
 
-import os
-from kontalklib import utils
+import os, time
+from kontalklib import database, utils
 import logging as log
 
 
@@ -55,8 +55,20 @@ class MessageStorage:
         '''Deletes a single message.'''
         pass
 
-    def extra_storage(self, content, name = None):
+    def extra_storage(self, uids, mime, content, name = None):
         '''Store a big file in the storage system.'''
+        pass
+
+    def update_extra_storage(self, fileid, uids):
+        '''Updates local storage data with the supplied uids.'''
+        pass
+
+    def get_extra(self, name):
+        '''Returns the full path of a file in the extra storage.'''
+        pass
+
+    def touch_user(self, uid):
+        '''Updates user last seen time to now.'''
         pass
 
 
@@ -135,7 +147,7 @@ class PersistentDictStorage(MessageStorage):
             import traceback
             traceback.print_exc()
 
-    def extra_storage(self, content, name = None):
+    def extra_storage(self, uids, mime, content, name = None):
         if not name:
             name = utils.rand_str(40)
         filename = os.path.join(self._extra_path, name)
@@ -144,40 +156,153 @@ class PersistentDictStorage(MessageStorage):
         f.close()
         return (filename, name)
 
+    def get_extra(self, name):
+        '''Returns the full path of a file in the extra storage.'''
+        return os.path.join(self._extra_path, name)
+
+    def touch_user(self, uid):
+        # TODO
+        pass
+
 
 class MySQLStorage(MessageStorage):
     '''MySQL-based message storage.'''
 
-    def __init__(self, db = None):
+    def __init__(self, path, db = None):
+        log.debug("init MySQL storage")
+        self._extra_path = path
+        try:
+            os.makedirs(self._extra_path)
+        except:
+            pass
+
         self._db = db
+        self._update_ds()
 
     def set_datasource(self, ds):
         self._db = ds
+        self._update_ds()
+
+    def _update_ds(self):
+        if self._db:
+            self.userdb = database.usercache(self._db)
+            self.msgdb = database.messages(self._db)
+            self.attdb = database.attachments(self._db)
+        else:
+            self.userdb = None
+            self.msgdb = None
+            self.attdb = None
 
     def get_timestamp(self, uid):
         '''Retrieves the timestamp of a user/mailbox.'''
+        # TODO
         pass
 
-    def stop(self, uid):
-        '''Stops a storage for a userid.'''
-        pass
+    def _format_msg(self, msg):
+        dm = { 'headers' : {} }
+
+        # message metadata
+        dm['messageid'] = msg['id']
+        timestamp = time.mktime(msg['timestamp'].timetuple())
+        dm['timestamp'] = timestamp
+        if msg['orig_id']:
+            dm['originalid'] = msg['orig_id']
+        dm['sender'] = msg['sender']
+        dm['recipient'] = msg['recipient']
+        dm['need_ack'] = msg['need_ack']
+        # TODO if msg['group']:
+
+        # headers
+        dm['headers']['mime'] = msg['mime']
+        dm['headers']['ttl'] = msg['ttl']
+        dm['headers']['flags'] = {}
+        dm['headers']['flags']['encrypted'] = (msg['encrypted'] != 0)
+
+        # payload
+        dm['payload'] = msg['content']
+        return dm
+
 
     def load(self, uid):
         '''Loads a storage for a userid.'''
-        pass
+        msgdict = {}
+        msglist = self.msgdb.incoming(uid, True)
+        for msg in msglist:
+            msgdict[msg['id']] = self._format_msg(msg)
+
+        return msgdict
 
     def store(self, uid, msg, force = False):
         '''Used to persist a message.'''
-        pass
+        orig_id = utils.dict_get_none(msg, 'originalid')
+        filename = utils.dict_get_none(msg['headers'], 'filename')
+        encrypted = utils.dict_get_none(msg['headers'], 'encrypted', False)
+        self.msgdb.insert(
+            msg['messageid'],
+            database.format_timestamp(msg['timestamp']),
+            msg['sender'],
+            uid,
+            None,   # TODO groups
+            msg['headers']['mime'],
+            msg['payload'],
+            encrypted,
+            filename,
+            100,
+            msg['need_ack'],
+            orig_id)
+
 
     def deliver(self, userid, msg, force = False):
         '''Used to persist a message that was intended to a generic userid.'''
-        pass
+        # store again with specific userid
+        self.store(userid, msg, force)
+        # delete old generic message
+        self.msgdb.delete(msg['originalid'])
 
     def delete(self, uid, msgid):
         '''Deletes a single message.'''
-        pass
+        self.msgdb.delete(msgid)
 
-    def extra_storage(self, content, name = None):
+    def extra_storage(self, uids, mime, content, name = None):
         '''Store a big file in the storage system.'''
-        pass
+        # TODO do not store files with same md5sum, they are supposed to be duplicates
+
+        if not name:
+            name = utils.rand_str(40)
+        # content to filesystem
+        filename = os.path.join(self._extra_path, name)
+        f = open(filename, 'w')
+        f.write(content)
+        f.close()
+
+        # calculate md5sum for file
+        # this is intentionally done to verify that the file is not corruputed on disk
+        md5sum = utils.md5sum(filename)
+
+        # store in attachments
+        for rcpt in uids:
+            # TODO check insert errors
+            self.attdb.insert(rcpt[:utils.USERID_LENGTH], name, mime, md5sum)
+
+        return (filename, name)
+
+    def update_extra_storage(self, fileid, uids):
+        '''Updates local storage data with the supplied uids.'''
+        # retrieve unmanaged attachment
+        att = self.attdb.get(fileid, '')
+        if att:
+            for u in uids:
+                try:
+                    self.attdb.insert(u[:utils.USERID_LENGTH], fileid, att['mime'], att['md5sum'])
+                except:
+                    pass
+            self.attdb.delete(fileid, '')
+
+    def get_extra(self, name):
+        '''Returns the full path of a file in the extra storage.'''
+        return os.path.join(self._extra_path, name)
+
+    def touch_user(self, uid):
+        '''Updates user last seen time to now.'''
+        if len(uid) == utils.USERID_LENGTH_RESOURCE:
+            self.userdb.update(uid)

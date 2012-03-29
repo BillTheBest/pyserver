@@ -23,12 +23,31 @@ config = {
     },
     'broker' : {
         'storage' : (
-            storage.PersistentDictStorage,
+            storage.MySQLStorage,
             '/tmp/kontalk'
         ),
-        # messages bigger than this size will be stored in the filesystem
-        'filesystem.threshold' : 102400, # 100 KB
-        'filesystem.download.url' : 'http://10.0.2.2/messenger/download.php?name=%s'
+        # messages bigger than this size will be refused
+        'max_size' : 102400, # 100 KB
+        # accepted content types
+        'accept_content' : (
+            'text/plain',
+            'text/x-vcard',
+            'text/vcard'
+        )
+    },
+    'fileserver' : {
+        # messages bigger than this size will be refused
+        'max_size' : 10485760,  # 10 MB
+        # accepted content types
+        'accept_content' : (
+            'text/plain',
+            'text/x-vcard',
+            'text/vcard',
+            'image/gif',
+            'image/png',
+            'image/jpeg'
+        ),
+        'download_url' : 'http://10.0.2.2/messenger/download.php?name=%s'
     },
     'database' : {
         'host' : 'localhost',

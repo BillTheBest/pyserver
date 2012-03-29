@@ -31,6 +31,7 @@ from twisted.cred import credentials, checkers, error
 from twisted.cred.portal import IRealm, Portal
 from twisted.web.guard import HTTPAuthSessionWrapper
 
+import kontalklib.c2s_pb2 as c2s
 import kontalk.config as config
 from kontalklib import database, token, utils
 
@@ -104,12 +105,20 @@ class FileUpload(resource.Resource):
         self.userid = userid
 
     def render_POST(self, request):
-        log.debug("request from %s: %s" % (self.userid, request.content.read()))
-        log.debug(request.requestHeaders)
-        # TODO store file and:
-            # - inject to message broker
-            # - return identifier?
-        return ''
+        log.debug("request from %s: %s" % (self.userid, request.requestHeaders))
+        a = c2s.FileUploadResponse()
+
+        mime = request.getHeader('content-type')
+        if mime not in config.config['fileserver']['accept_content']:
+            a.status = c2s.FileUploadResponse.STATUS_UNSUPPORTED
+        else:
+            # store file to storage
+            (filename, fileid) = self.fileserver.storage.extra_storage(('', ), mime, request.content.read())
+            a.status = c2s.FileUploadResponse.STATUS_SUCCESS
+            a.file_id = fileid
+
+        request.setHeader('content-type', 'application/x-google-protobuf')
+        return a.SerializeToString()
 
     def logout(self):
         # TODO
