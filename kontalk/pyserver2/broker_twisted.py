@@ -124,6 +124,7 @@ class C2SServerProtocol(InternalServerProtocol):
             if self.service.is_logged():
                 r = c2s.UserLookupResponse()
                 found = self.service.lookup_users(str(tx_id), tuple(data.user_id))
+                print found
                 for u in found:
                     e = r.entry.add()
                     e.user_id = u['userid']
@@ -131,6 +132,8 @@ class C2SServerProtocol(InternalServerProtocol):
                         e.status = u['status']
                     if 'timestamp' in u:
                         e.timestamp = u['timestamp']
+                    if 'timediff' in u:
+                        e.timediff = u['timediff']
 
         if r:
             self.sendBox(r, tx_id)

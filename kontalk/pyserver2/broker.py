@@ -174,6 +174,16 @@ class MessageBroker:
     def message_id(self):
         return utils.rand_str(30)
 
+    def user_online(self, uid):
+        '''Returns true if the specified user currently is a registered consumer.'''
+        uhash, resource = utils.split_userid(uid)
+        generic_online = (uhash in self._consumers and len(self._consumers[uhash]) > 0)
+
+        if resource:
+            return generic_online and resource in self._consumers[uhash]
+        else:
+            return generic_online
+
     def _reload_usermsg_queue(self, uid):
         stored = dict(self.storage.load(uid))
         if stored:

@@ -119,10 +119,21 @@ class C2SChannel:
         return self.broker.ack_user(self.userid, messages)
 
     def lookup_users(self, tx_id, users):
-        # TODO real lookup please :D
         ret = []
         for u in users:
-            ret.append({'userid' : str(u)})
+            userid = str(u)
+            l = { 'userid' : userid }
+            # check if user is online, otherwise ask storage
+            if self.broker.user_online(userid):
+                l['timediff'] = 0
+            else:
+                timestamp = self.broker.storage.get_timestamp(userid)
+                if timestamp:
+                    l['timestamp'] = timestamp
+                    l['timediff'] = long(time.time()-timestamp)
+
+            ret.append(l)
+
         return ret
 
     def validate_user(self, tx_id, code):

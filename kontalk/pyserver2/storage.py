@@ -195,15 +195,15 @@ class MySQLStorage(MessageStorage):
 
     def get_timestamp(self, uid):
         '''Retrieves the timestamp of a user/mailbox.'''
-        # TODO
-        pass
+        dd = self.userdb.get(uid, False)
+        return long(time.mktime(dd['timestamp'].timetuple())) if dd else None
 
     def _format_msg(self, msg):
         dm = { 'headers' : {} }
 
         # message metadata
         dm['messageid'] = msg['id']
-        timestamp = time.mktime(msg['timestamp'].timetuple())
+        timestamp = long(time.mktime(msg['timestamp'].timetuple()))
         dm['timestamp'] = timestamp
         if msg['orig_id']:
             dm['originalid'] = msg['orig_id']
