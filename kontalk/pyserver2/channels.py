@@ -87,6 +87,8 @@ class C2SChannel:
             self.broker.storage.update_extra_storage(fileid, recipient)
             # TODO risk that the thumbnail to be larger than the max allowed size
             content = utils.generate_preview_content(filename, mime)
+        else:
+            filename = None
 
         res = {}
         for rcpt in recipient:
@@ -237,8 +239,8 @@ class C2SChannel:
         a.mime = data['headers']['mime']
         a.flags.extend(data['headers']['flags'])
         a.content = data['payload']
-        if 'filename' in data:
-            a.url = config.config['fileserver']['download_url'] % data['filename']
+        if 'filename' in data['headers']:
+            a.url = config.config['fileserver']['download_url'] % data['headers']['filename']
         self.protocol.sendBox(a)
 
 

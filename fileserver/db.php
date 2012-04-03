@@ -6,10 +6,7 @@
  */
 
 
-include 'messages.php';
-include 'usercache.php';
 include 'servers.php';
-include 'validations.php';
 include 'attachments.php';
 
 class MessengerDb
@@ -41,39 +38,12 @@ class MessengerDb
     }
 
     /**
-     * Creates a usercache table instance.
-     * @return UsercacheDb
-     */
-    function usercache()
-    {
-        return new UsercacheDb($this->db);
-    }
-
-    /**
-     * Creates a messages table instance.
-     * @return MessagesDb
-     */
-    function messages()
-    {
-        return new MessagesDb($this->db);
-    }
-
-    /**
      * Creates a servers table instance.
      * @return ServersDb
      */
     function servers()
     {
         return new ServersDb($this->db);
-    }
-
-    /**
-     * Creates a validations table instance.
-     * @return ValidationsDb
-     */
-    function validations()
-    {
-        return new ValidationsDb($this->db);
     }
 
     /**

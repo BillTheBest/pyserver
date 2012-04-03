@@ -8,9 +8,13 @@
 function verify_user_token($serversdb)
 {
     // ehm :)
-    if (!isset($_SERVER['HTTP_X_AUTH_TOKEN'])) return false;
+    if (!isset($_SERVER['HTTP_AUTHORIZATION'])) return false;
 
-    $token = $_SERVER['HTTP_X_AUTH_TOKEN'];
+    $auth = $_SERVER['HTTP_AUTHORIZATION'];
+    if (!strcasecmp(substr($auth, 0, strlen('KontalkToken')), 'KontalkToken')) {
+        $token = end(explode('auth=', $auth));
+    }
+
     if ($token) {
         $text = false;
         $gpg = gnupg_init();

@@ -215,8 +215,9 @@ class MySQLStorage(MessageStorage):
         # headers
         dm['headers']['mime'] = msg['mime']
         dm['headers']['ttl'] = msg['ttl']
-        dm['headers']['flags'] = {}
-        dm['headers']['flags']['encrypted'] = (msg['encrypted'] != 0)
+        dm['headers']['flags'] = []
+        if msg['encrypted'] != 0:
+            dm['headers']['flags'].append('encrypted')
 
         # payload
         dm['payload'] = msg['content']
