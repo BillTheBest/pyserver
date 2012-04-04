@@ -6,7 +6,7 @@ from pyserver2 import storage
 
 config = {
     'server' : {
-        'fingerprint' : '96072D50F1A0EE5BD8664733F86AAD37AA187333',
+        'fingerprint' : '37D0E678CDD19FB9B182B3804C9539B401F8229C',
         'c2s.bind' : ('localhost', 6126),
         's2s.bind' : ('localhost', 6127),
         'fileserver.bind' : ('localhost', 6128),

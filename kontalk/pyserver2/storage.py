@@ -237,7 +237,7 @@ class MySQLStorage(MessageStorage):
         '''Used to persist a message.'''
         orig_id = utils.dict_get_none(msg, 'originalid')
         filename = utils.dict_get_none(msg['headers'], 'filename')
-        encrypted = utils.dict_get_none(msg['headers'], 'encrypted', False)
+        encrypted = 'encrypted' in msg['headers']['flags']
         self.msgdb.insert(
             msg['messageid'],
             database.format_timestamp(msg['timestamp']),

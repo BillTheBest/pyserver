@@ -262,7 +262,7 @@ class MessageBroker:
                 e.status = m['status']
                 e.timestamp = m['timestamp']
 
-            if not self.publish_user(sender, backuser, { 'mime' : 'r', 'flags' : {} }, r.SerializeToString(), MSG_ACK_MANUAL):
+            if not self.publish_user(sender, backuser, { 'mime' : 'r', 'flags' : [] }, r.SerializeToString(), MSG_ACK_MANUAL):
                 # mark the messages NOT SAFE to delete
                 for m in msglist:
                     res[m['storageid']] = False
