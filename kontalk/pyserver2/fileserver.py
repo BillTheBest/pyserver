@@ -20,6 +20,7 @@
 
 
 import logging as log
+import os
 
 from zope.interface import implements
 
@@ -30,6 +31,8 @@ from twisted.web import server, resource, iweb
 from twisted.cred import credentials, checkers, error
 from twisted.cred.portal import IRealm, Portal
 from twisted.web.guard import HTTPAuthSessionWrapper
+from twisted.protocols.basic import FileSender
+from twisted.python.log import err
 
 import kontalklib.c2s_pb2 as c2s
 import kontalk.config as config
@@ -98,6 +101,55 @@ class AuthKontalkTokenFactory(object):
         raise error.LoginFailed('Invalid token')
 
 
+class FileDownload(resource.Resource):
+    def __init__(self, fileserver, userid):
+        resource.Resource.__init__(self)
+        self.fileserver = fileserver
+        self.userid = userid
+
+    def _quick_response(self, request, code, text):
+        request.setResponseCode(code)
+        request.setHeader('content-type', 'text/plain')
+        return text
+
+    def bad_request(self, request):
+        return self._quick_response(request, 400, 'bad request')
+
+    def not_found(self, request):
+        return self._quick_response(request, 404, 'not found')
+
+    def render_GET(self, request):
+        log.debug("request from %s: %s" % (self.userid, request.args))
+        if 'f' in request.args:
+            fn = request.args['f'][0]
+            info = self.fileserver.storage.get_extra(fn, self.userid)
+            if info:
+                (filename, mime, md5sum) = info
+                genfilename = utils.generate_filename(mime)
+                request.setHeader('content-type', mime)
+                request.setHeader('content-length', os.path.getsize(filename))
+                request.setHeader('content-disposition', 'attachment; filename="%s"' % (genfilename))
+                request.setHeader('x-md5sum', md5sum)
+
+                # stream file to the client
+                fp = open(filename, 'rb')
+                d = FileSender().beginFileTransfer(fp, request)
+                def finished(ignored):
+                    fp.close()
+                    request.finish()
+                d.addErrback(err).addCallback(finished)
+                return server.NOT_DONE_YET
+
+            # file not found in extra storage
+            else:
+                return self.not_found(request)
+
+        return self.bad_request(request)
+
+    def logout(self):
+        # TODO
+        pass
+
 class FileUpload(resource.Resource):
     def __init__(self, fileserver, userid):
         resource.Resource.__init__(self)
@@ -132,9 +184,20 @@ class FileUploadRealm(object):
         self.fileserver = fileserver
 
     def requestAvatar(self, avatarId, mind, *interfaces):
-        log.debug("requestAvatar: %s" % avatarId)
+        log.debug("[upload] requestAvatar: %s" % avatarId)
         uploader = FileUpload(self.fileserver, avatarId)
         return interfaces[0], uploader, uploader.logout
+
+class FileDownloadRealm(object):
+    implements(IRealm)
+
+    def __init__(self, fileserver):
+        self.fileserver = fileserver
+
+    def requestAvatar(self, avatarId, mind, *interfaces):
+        log.debug("[download] requestAvatar: %s" % avatarId)
+        downloader = FileDownload(self.fileserver, avatarId)
+        return interfaces[0], downloader, downloader.logout
 
 
 class Fileserver(resource.Resource):
@@ -156,7 +219,10 @@ class Fileserver(resource.Resource):
         resource = HTTPAuthSessionWrapper(portal, [credFactory])
         self.putChild('upload', resource)
 
-        # TODO setup download endpoint
+        # setup download endpoint
+        portal = Portal(FileDownloadRealm(self), [AuthKontalkToken(self.db)])
+        resource = HTTPAuthSessionWrapper(portal, [credFactory])
+        self.putChild('download', resource)
 
         # create http service
         factory = server.Site(self)

@@ -59,11 +59,11 @@ class MessageStorage:
         '''Store a big file in the storage system.'''
         pass
 
-    def update_extra_storage(self, fileid, uids):
+    def update_extra_storage(self, name, uids):
         '''Updates local storage data with the supplied uids.'''
         pass
 
-    def get_extra(self, name):
+    def get_extra(self, name, uid):
         '''Returns the full path of a file in the extra storage.'''
         pass
 
@@ -156,9 +156,9 @@ class PersistentDictStorage(MessageStorage):
         f.close()
         return (filename, name)
 
-    def get_extra(self, name):
+    def get_extra(self, name, uid):
         '''Returns the full path of a file in the extra storage.'''
-        return os.path.join(self._extra_path, name)
+        return os.path.join(self._extra_path, name), None, None
 
     def touch_user(self, uid):
         # TODO
@@ -287,21 +287,23 @@ class MySQLStorage(MessageStorage):
 
         return (filename, name)
 
-    def update_extra_storage(self, fileid, uids):
+    def update_extra_storage(self, name, uids):
         '''Updates local storage data with the supplied uids.'''
         # retrieve unmanaged attachment
-        att = self.attdb.get(fileid, '')
+        att = self.attdb.get(name, '')
         if att:
             for u in uids:
                 try:
-                    self.attdb.insert(u[:utils.USERID_LENGTH], fileid, att['mime'], att['md5sum'])
+                    self.attdb.insert(u[:utils.USERID_LENGTH], name, att['mime'], att['md5sum'])
                 except:
                     pass
-            self.attdb.delete(fileid, '')
+            self.attdb.delete(name, '')
 
-    def get_extra(self, name):
+    def get_extra(self, name, uid):
         '''Returns the full path of a file in the extra storage.'''
-        return os.path.join(self._extra_path, name)
+        att = self.attdb.get(name, uid)
+        if att:
+            return os.path.join(self._extra_path, att['filename']), att['mime'], att['md5sum']
 
     def touch_user(self, uid):
         '''Updates user last seen time to now.'''
