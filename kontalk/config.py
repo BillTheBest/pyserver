@@ -10,8 +10,9 @@ config = {
         'c2s.bind' : ('localhost', 6126),
         's2s.bind' : ('localhost', 6127),
         'fileserver.bind' : ('localhost', 6128),
-        'c2s.pack_size_max' : 1048576, # 1 MB
-        's2s.pack_size_max' : 10485760 # 10 MB
+        'c2s.pack_size_max' : 1048576,  # 1 MB
+        's2s.pack_size_max' : 10485760, # 10 MB
+        'supports.google_c2dm' : True
     },
     'registration' : {
         'type' : 'sms',
@@ -55,5 +56,8 @@ config = {
         'user' : 'root',
         'password' : 'ciao',
         'dbname' : 'messenger1'
+    },
+    'google_c2dm' : {
+        'email' : 'c2dm.account@gmail.com'
     }
 }

@@ -150,11 +150,13 @@ class Fileserver(resource.Resource):
     def setup(self):
         log.debug("fileserver init")
 
-        # setup http service
+        # setup upload endpoint
         portal = Portal(FileUploadRealm(self), [AuthKontalkToken(self.db)])
         credFactory = AuthKontalkTokenFactory()
         resource = HTTPAuthSessionWrapper(portal, [credFactory])
         self.putChild('upload', resource)
+
+        # TODO setup download endpoint
 
         # create http service
         factory = server.Site(self)

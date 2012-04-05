@@ -26,7 +26,7 @@ from kontalklib import token, database, utils
 import kontalk.config as config
 import kontalklib.c2s_pb2 as c2s
 
-import broker
+import version, broker
 
 
 class C2SChannel:
@@ -71,6 +71,27 @@ class C2SChannel:
             return True
 
         return False
+
+    def serverinfo(self, tx_id, client_version = None, client_protocol = None):
+        # TODO shall we check client protocol revision compatibility?
+        info = {
+            'version' : '%s %s' % (version.PACKAGE, version.VERSION),
+            'client-protocol' : version.CLIENT_PROTOCOL,
+            'server-protocol' : version.SERVER_PROTOCOL,
+            'fingerprint' : config.config['server']['fingerprint'],
+            'supports' : []
+        }
+
+        # TODO supports should be modular
+        # support for Google C2DM push notification service
+        try:
+            if config.config['server']['supports.google_c2dm']:
+                email = config.config['google_c2dm']['email']
+                info['supports'].append('google_c2dm=' + email)
+        except:
+            pass
+
+        return info
 
     def post_message(self, tx_id, recipient = None, mime = None, flags = None, content = None):
         '''User posted a message.'''
