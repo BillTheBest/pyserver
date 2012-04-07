@@ -42,7 +42,7 @@ class PushNotifications:
             self._notify_cache[userid] += 1
 
     def notify_all(self, uhash):
-        match = self._cachedb.get_generic(uhash, False)
+        match = self._cachedb.get_generic(uhash)
         ret = []
         for u in match:
             ret.append(self.notify(u['userid']))
