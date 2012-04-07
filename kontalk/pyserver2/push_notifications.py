@@ -33,7 +33,7 @@ class PushNotifications:
         self._notify_cache = {}
 
     def notify(self, userid):
-        if not self._notify_cache:
+        if userid not in self._notify_cache:
             self._notify_cache[userid] = 0
             server = self._push_server(userid)
             if server:
