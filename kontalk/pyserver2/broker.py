@@ -31,6 +31,7 @@ from channels import *
 from broker_twisted import *
 import version, storage
 from txrdq import ResizableDispatchQueue
+from push_notifications import PushNotifications
 
 import kontalk.config as config
 from kontalklib import database, utils
@@ -62,6 +63,9 @@ class MessageBroker:
         self.db = database.connect_config(config.config)
         # datasource it will not be used if not neededs
         self.storage.set_datasource(self.db)
+
+        # create push notifications manager
+        self.push_manager = PushNotifications(self.db)
 
         # create listening service for clients
         factory = InternalServerFactory(C2SServerProtocol, C2SChannel, self)
@@ -103,10 +107,13 @@ class MessageBroker:
                     # send to client listener
                     q.put(outmsg)
 
-            except:
+            except KeyError:
                 log.debug("warning: no listener to deliver message!")
                 # store to temporary spool
                 self.storage.store(userid, msg)
+                # send push notifications to all matching users
+                self.push_manager.notify_all(userid)
+
 
         elif len(userid) == utils.USERID_LENGTH_RESOURCE:
             uhash, resource = utils.split_userid(userid)
@@ -126,6 +133,8 @@ class MessageBroker:
                 self._consumers[uhash][resource].put(msg)
             except:
                 log.debug("warning: no listener to deliver message to resource %s!" % resource)
+                # send push notification
+                self.push_manager.notify(userid)
 
         else:
             log.warn("warning: unknown userid format %s" % userid)
@@ -144,6 +153,9 @@ class MessageBroker:
 
         self._consumers[uhash][resource] = ResizableDispatchQueue(worker)
         self._consumers[uhash][resource].start(5)
+
+        # mark user as online in the push notifications manager
+        self.push_manager.mark_user_online(userid)
 
         """
         WARNING these two need to be called in this order!!!
