@@ -58,6 +58,7 @@ config = {
         'dbname' : 'messenger1'
     },
     'google_c2dm' : {
-        'email' : 'c2dm.account@gmail.com'
+        'email' : 'c2dm.account@gmail.com',
+        'token' : 'TODO'
     }
 }
