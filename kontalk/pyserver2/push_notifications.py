@@ -81,7 +81,7 @@ class GooglePush(PushServer):
 
     def __init__(self, userid, regid):
         # TODO request token by using credentials
-        self.token = config.config['googlepush']['token']
+        self.token = config.config['google_c2dm']['token']
         self.userid = userid
         self.regid = regid
 
