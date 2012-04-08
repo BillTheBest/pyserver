@@ -162,6 +162,19 @@ class C2SChannel:
 
         return ret
 
+    def user_update(self, status_msg = None, google_regid = None):
+        fields = {}
+        if status_msg != None:
+            # status message too long
+            if len(status_msg) > STATUS_MESSAGE_MAX_LENGTH:
+                return c2s.UserInfoUpdateResponse.STATUS_BIG
+            fields['status'] = status_msg
+
+        if google_regid != None:
+            fields['google_registrationid'] = google_regid
+
+        self.broker.storage.update_user(fields)
+
     def validate_user(self, tx_id, code):
         if not code or len(code) != utils.VALIDATION_CODE_LENGTH:
             return c2s.ValidationResponse.STATUS_FAILED, None

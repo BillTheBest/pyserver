@@ -71,6 +71,9 @@ class MessageStorage:
         '''Updates user last seen time to now.'''
         pass
 
+    def update_user(self, uid, fields):
+        '''Updates fields of the user status table.'''
+        pass
 
 class PersistentDictStorage(MessageStorage):
     '''PersistentDict-based message storage.'''
@@ -309,3 +312,10 @@ class MySQLStorage(MessageStorage):
         '''Updates user last seen time to now.'''
         if len(uid) == utils.USERID_LENGTH_RESOURCE:
             self.userdb.update(uid)
+
+    def update_user(self, uid, fields):
+        '''Updates fields of the user status table.'''
+        # TODO optimize access to database
+        if len(uid) == utils.USERID_LENGTH_RESOURCE:
+            for k, v in fields.iteritems():
+                self.userdb.update_field(uid, k, v)

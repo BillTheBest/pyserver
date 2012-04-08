@@ -143,6 +143,19 @@ class C2SServerProtocol(InternalServerProtocol):
             r.fingerprint = info['fingerprint']
             r.supports.extend(info['supports'])
 
+        elif name == 'UserInfoUpdateRequest':
+            if self.service.is_logged():
+                r = c2s.UserInfoUpdateResponse()
+                if r.HasField('status_message'):
+                    status_msg = str(r.status_message)
+                else:
+                    status_msg = None
+                if r.HasField('google_registration_id'):
+                    google_regid = str(r.google_registration_id)
+                else:
+                    google_regid = None
+
+                r.status = self.service.user_update(status_msg, google_regid)
 
         if r:
             self.sendBox(r, tx_id)
