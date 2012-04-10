@@ -166,14 +166,26 @@ class C2SChannel:
         fields = {}
         if status_msg != None:
             # status message too long
-            if len(status_msg) > STATUS_MESSAGE_MAX_LENGTH:
+            if len(status_msg) > utils.STATUS_MESSAGE_MAX_LENGTH:
                 return c2s.UserInfoUpdateResponse.STATUS_BIG
-            fields['status'] = status_msg
+            fields['status'] = status_msg if len(status_msg.strip()) > 0 else None
 
         if google_regid != None:
-            fields['google_registrationid'] = google_regid
+            google_regid = google_regid.strip()
+            fields['google_registrationid'] = google_regid if len(google_regid) > 0 else None
 
-        self.broker.storage.update_user(fields)
+        try:
+            self.broker.storage.update_user(self.userid, fields)
+            if 'status' in fields:
+                self.broker.broadcast_presence(self.userid, c2s.UserPresence.EVENT_STATUS_CHANGED, fields['status'])
+            return c2s.UserInfoUpdateResponse.STATUS_SUCCESS
+        except:
+            import traceback
+            traceback.print_exc()
+            return c2s.UserInfoUpdateResponse.STATUS_ERROR
+
+    def user_presence_subscribe(self, userid, events):
+        return self.broker.subscribe_user_presence(self.userid, userid, events)
 
     def validate_user(self, tx_id, code):
         if not code or len(code) != utils.VALIDATION_CODE_LENGTH:
@@ -264,7 +276,7 @@ class C2SChannel:
     def _incoming(self, data, unused = None):
         '''Internal queue worker.'''
         # TODO check for missing keys
-        log.debug("incoming message: %s" % data)
+        log.debug("incoming message: %s" % data['messageid'])
         # TODO avoid using c2s directly; instead create a method in C2SServerProtocol
         a = c2s.NewMessage()
         a.message_id = data['messageid']
@@ -276,6 +288,7 @@ class C2SChannel:
         a.mime = data['headers']['mime']
         a.flags.extend(data['headers']['flags'])
         a.content = data['payload']
+        a.need_ack = (data['need_ack'] != broker.MSG_ACK_NONE)
         if 'filename' in data['headers']:
             a.url = config.config['fileserver']['download_url'] % data['headers']['filename']
         self.protocol.sendBox(a)

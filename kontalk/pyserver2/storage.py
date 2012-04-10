@@ -317,5 +317,4 @@ class MySQLStorage(MessageStorage):
         '''Updates fields of the user status table.'''
         # TODO optimize access to database
         if len(uid) == utils.USERID_LENGTH_RESOURCE:
-            for k, v in fields.iteritems():
-                self.userdb.update_field(uid, k, v)
+            self.userdb.update(uid, None, **fields)

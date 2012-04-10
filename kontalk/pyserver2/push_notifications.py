@@ -18,6 +18,7 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
+import logging as log
 import urllib, urllib2
 
 import kontalk.config as config
@@ -37,7 +38,8 @@ class PushNotifications:
             self._notify_cache[userid] = 0
             server = self._push_server(userid)
             if server:
-                return server.notify()
+                log.debug("pushing notification to %s" % userid)
+                return 'TODO' #server.notify()
         else:
             self._notify_cache[userid] += 1
 

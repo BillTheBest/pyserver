@@ -12,6 +12,7 @@ config = {
         'fileserver.bind' : ('localhost', 6128),
         'c2s.pack_size_max' : 1048576,  # 1 MB
         's2s.pack_size_max' : 10485760, # 10 MB
+        'push_notifications' : True,
         'supports.google_c2dm' : True
     },
     'registration' : {

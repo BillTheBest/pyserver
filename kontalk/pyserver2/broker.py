@@ -36,6 +36,11 @@ from push_notifications import PushNotifications
 import kontalk.config as config
 from kontalklib import database, utils
 
+# mime type for receipt messages
+MIME_RECEIPT = 'internal/receipt'
+# mime type for presence notifications
+MIME_PRESENCE = 'internal/presence'
+
 
 # no ack is required
 MSG_ACK_NONE = 0
@@ -44,6 +49,13 @@ MSG_ACK_MANUAL = 1
 # ack will be bounced to sender
 MSG_ACK_BOUNCE = 2
 
+# helper for checking event masks
+USER_EVENT_MASKS = {
+    c2s.UserPresence.EVENT_ONLINE : c2s.USER_EVENT_MASK_ONLINE,
+    c2s.UserPresence.EVENT_OFFLINE : c2s.USER_EVENT_MASK_OFFLINE,
+    c2s.UserPresence.EVENT_STATUS_CHANGED : c2s.USER_EVENT_MASK_STATUS_CHANGED
+}
+
 
 class MessageBroker:
     '''Message broker connection manager.'''
@@ -51,6 +63,12 @@ class MessageBroker:
     '''Map of the queue consumers.
     Queues in this map will contain the collection of workers for specific userids.'''
     _consumers = {}
+    '''Map of presence subscriptions.'''
+    _presence = {}
+    '''Map of reverse-presence subscriptions.'''
+    _presence_lists = {}
+    '''The push notifications manager.'''
+    push_manager = None
 
     def __init__(self, application):
         self.application = application
@@ -65,7 +83,9 @@ class MessageBroker:
         self.storage.set_datasource(self.db)
 
         # create push notifications manager
-        self.push_manager = PushNotifications(self.db)
+        if config.config['server']['push_notifications']:
+            log.debug("enabling push notifications support")
+            self.push_manager = PushNotifications(self.db)
 
         # create listening service for clients
         factory = InternalServerFactory(C2SServerProtocol, C2SChannel, self)
@@ -112,7 +132,8 @@ class MessageBroker:
                 # store to temporary spool
                 self.storage.store(userid, msg)
                 # send push notifications to all matching users
-                self.push_manager.notify_all(userid)
+                if self.push_manager:
+                    self.push_manager.notify_all(userid)
 
 
         elif len(userid) == utils.USERID_LENGTH_RESOURCE:
@@ -134,7 +155,8 @@ class MessageBroker:
             except:
                 log.debug("warning: no listener to deliver message to resource %s!" % resource)
                 # send push notification
-                self.push_manager.notify(userid)
+                if self.push_manager:
+                    self.push_manager.notify(userid)
 
         else:
             log.warn("warning: unknown userid format %s" % userid)
@@ -155,7 +177,11 @@ class MessageBroker:
         self._consumers[uhash][resource].start(5)
 
         # mark user as online in the push notifications manager
-        self.push_manager.mark_user_online(userid)
+        if self.push_manager:
+            self.push_manager.mark_user_online(userid)
+
+        # broadcast presence
+        self.broadcast_presence(userid, c2s.UserPresence.EVENT_ONLINE)
 
         """
         WARNING these two need to be called in this order!!!
@@ -183,8 +209,93 @@ class MessageBroker:
             import traceback
             traceback.print_exc()
 
+        # remove presence subscriptions
+        self.unsubscribe_user_presence(userid)
+        # broadcast presence
+        self.broadcast_presence(userid, c2s.UserPresence.EVENT_OFFLINE)
+
     def message_id(self):
         return utils.rand_str(30)
+
+    def broadcast_presence(self, userid, event, status = None):
+        def _broadcast(self, by_userid, to_userid, event, status):
+            log.debug("broadcasting event %d by user %s to user %s" % (event, by_userid, to_userid))
+            m = c2s.UserPresence()
+            m.event = event
+            if status != None:
+                m.status_message = status
+            self.publish_user(by_userid, to_userid, { 'mime' : MIME_PRESENCE, 'flags' : [] }, m.SerializeToString(), MSG_ACK_NONE)
+
+        subs_generic, subs_specific = self.get_presence_subscribers(userid)
+        if subs_generic:
+            for sub, mask in subs_generic.iteritems():
+                if mask & USER_EVENT_MASKS[event]:
+                    _broadcast(self, userid, sub, event, status)
+        if subs_specific:
+            for sub, mask in subs_specific.iteritems():
+                if mask & USER_EVENT_MASKS[event]:
+                    _broadcast(self, userid, sub, event, status)
+
+    def get_presence_subscribers(self, userid):
+        '''Returns a tuple containing presence subscribers respectively for the generic user and the specific user.'''
+        uhash, resource = utils.split_userid(userid)
+        try:
+            generic = self._presence[uhash]['']
+        except:
+            generic = None
+        try:
+            specific = self._presence[uhash][resource]
+        except:
+            specific = None
+
+        return generic, specific
+
+    def subscribe_user_presence(self, userid, uid, events, internal = False):
+        if not internal:
+            log.debug("subscribing %s to presence notifications by %s for events %d" % (userid, uid, events))
+        # invalid username
+        if len(uid) != utils.USERID_LENGTH and len(uid) != utils.USERID_LENGTH_RESOURCE:
+            return c2s.UserPresenceSubscribeResponse.STATUS_INVALID_USERNAME
+        # invalid event mask
+        if events > c2s.USER_EVENT_MASK_ALL:
+            return c2s.UserPresenceSubscribeResponse.STATUS_ERROR
+
+        uhash, resource = utils.split_userid(uid)
+        if uhash not in  self._presence:
+            self._presence[uhash] = {}
+        if resource not in self._presence[uhash]:
+            self._presence[uhash][resource] = {}
+        if userid not in self._presence_lists:
+            self._presence_lists[userid] = []
+
+        if events == 0:
+            try:
+                # remove from subscriptions map
+                del self._presence[uhash][resource][userid]
+            except:
+                pass
+            if not internal:
+                try:
+                    # remove from subscriptions lists
+                    self._presence_lists[userid].remove(uid)
+                except:
+                    pass
+        else:
+            # add to subscriptions map
+            self._presence[uhash][resource][userid] = events
+            if not internal:
+                # add to subscriptions lists
+                self._presence_lists[userid].append(uid)
+
+        return c2s.UserPresenceSubscribeResponse.STATUS_SUCCESS
+
+    def unsubscribe_user_presence(self, userid):
+        '''Unsubscribes user to any kind of event by any user.'''
+        log.debug("ubsubscribing %s from all presence notifications" % userid)
+        if userid in self._presence_lists:
+            for sub in self._presence_lists[userid]:
+                self.subscribe_user_presence(userid, sub, 0, True)
+            del self._presence_lists[userid]
 
     def user_online(self, uid):
         '''Returns true if the specified user currently is a registered consumer.'''
@@ -244,7 +355,7 @@ class MessageBroker:
             try:
                 msg = db[msgid]
                 if msg['need_ack'] == MSG_ACK_BOUNCE:
-                    log.debug("found message to be acknowledged - %s" % msgid)
+                    #log.debug("found message to be acknowledged - %s" % msgid)
 
                     # group receipts by user so we can batch send
                     backuser = msg['sender']
@@ -274,7 +385,7 @@ class MessageBroker:
                 e.status = m['status']
                 e.timestamp = m['timestamp']
 
-            if not self.publish_user(sender, backuser, { 'mime' : 'r', 'flags' : [] }, r.SerializeToString(), MSG_ACK_MANUAL):
+            if not self.publish_user(sender, backuser, { 'mime' : MIME_RECEIPT, 'flags' : [] }, r.SerializeToString(), MSG_ACK_MANUAL):
                 # mark the messages NOT SAFE to delete
                 for m in msglist:
                     res[m['storageid']] = False

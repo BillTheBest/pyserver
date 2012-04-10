@@ -146,16 +146,21 @@ class C2SServerProtocol(InternalServerProtocol):
         elif name == 'UserInfoUpdateRequest':
             if self.service.is_logged():
                 r = c2s.UserInfoUpdateResponse()
-                if r.HasField('status_message'):
-                    status_msg = str(r.status_message)
+                if data.HasField('status_message'):
+                    status_msg = str(data.status_message)
                 else:
                     status_msg = None
-                if r.HasField('google_registration_id'):
-                    google_regid = str(r.google_registration_id)
+                if data.HasField('google_registration_id'):
+                    google_regid = str(data.google_registration_id)
                 else:
                     google_regid = None
 
                 r.status = self.service.user_update(status_msg, google_regid)
+
+        elif name == 'UserPresenceSubscribeRequest':
+            if self.service.is_logged():
+                r = c2s.UserPresenceSubscribeResponse()
+                r.status = self.service.user_presence_subscribe(str(data.user_id), data.events)
 
         if r:
             self.sendBox(r, tx_id)
