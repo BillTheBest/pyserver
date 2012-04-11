@@ -261,7 +261,7 @@ class MessageBroker:
             return c2s.UserPresenceSubscribeResponse.STATUS_ERROR
 
         uhash, resource = utils.split_userid(uid)
-        if uhash not in  self._presence:
+        if uhash not in self._presence:
             self._presence[uhash] = {}
         if resource not in self._presence[uhash]:
             self._presence[uhash][resource] = {}
@@ -285,7 +285,8 @@ class MessageBroker:
             self._presence[uhash][resource][userid] = events
             if not internal:
                 # add to subscriptions lists
-                self._presence_lists[userid].append(uid)
+                if uid not in self._presence_lists:
+                    self._presence_lists[userid].append(uid)
 
         return c2s.UserPresenceSubscribeResponse.STATUS_SUCCESS
 
