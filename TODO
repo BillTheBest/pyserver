@@ -1,3 +1,4 @@
+[ ] touch user (storage) when they validate/register
 [x] broadcast/notification of user status update (subscription-based presence notification)
 [x] user status update/google registration id update
 [x] mark_user_online() seems not to work correctly...

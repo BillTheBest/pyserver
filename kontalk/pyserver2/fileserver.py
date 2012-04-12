@@ -20,7 +20,7 @@
 
 
 import logging as log
-import os
+import os, time
 
 from zope.interface import implements
 
@@ -99,6 +99,32 @@ class AuthKontalkTokenFactory(object):
             return KontalkToken(token)
 
         raise error.LoginFailed('Invalid token')
+
+
+class ServerlistDownload(resource.Resource):
+    def __init__(self, db):
+        resource.Resource.__init__(self)
+        self.servers = database.servers(db)
+
+    def render_GET(self, request):
+        a = c2s.ServerList()
+        a.timestamp = long(time.time())
+
+        # add ourselves first
+        e = a.entry.add()
+        e.address = config.config['server']['host']
+        e.port = config.config['server']['c2s.bind'][1]
+        e.http_port = config.config['server']['fileserver.bind'][1]
+
+        srvlist = self.servers.get_list(False, True)
+        for srv in srvlist:
+            e = a.entry.add()
+            e.address = srv['host']
+            e.port = int(srv['port'])
+            e.http_port = int(srv['http_port'])
+
+        request.setHeader('content-type', 'application/x-google-protobuf')
+        return a.SerializeToString()
 
 
 class FileDownload(resource.Resource):
@@ -223,6 +249,9 @@ class Fileserver(resource.Resource):
         portal = Portal(FileDownloadRealm(self), [AuthKontalkToken(self.db)])
         resource = HTTPAuthSessionWrapper(portal, [credFactory])
         self.putChild('download', resource)
+
+        # setup serverlist endpoint
+        self.putChild('serverlist', ServerlistDownload(self.db))
 
         # create http service
         factory = server.Site(self)

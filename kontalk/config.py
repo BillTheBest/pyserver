@@ -2,14 +2,16 @@
 '''Pyserver2 configuration.'''
 
 from pyserver2 import storage
+from kontalklib import utils
 
 
 config = {
     'server' : {
         'fingerprint' : '37D0E678CDD19FB9B182B3804C9539B401F8229C',
-        'c2s.bind' : ('localhost', 6126),
-        's2s.bind' : ('localhost', 6127),
-        'fileserver.bind' : ('localhost', 6128),
+        'host' : 'localhost',
+        'c2s.bind' : ('localhost', utils.DEFAULT_CLIENT_PORT),
+        's2s.bind' : ('localhost', utils.DEFAULT_SERVER_PORT),
+        'fileserver.bind' : ('localhost', utils.DEFAULT_CLIENT_HTTP_PORT),
         'c2s.pack_size_max' : 1048576,  # 1 MB
         's2s.pack_size_max' : 10485760, # 10 MB
         'push_notifications' : True,
