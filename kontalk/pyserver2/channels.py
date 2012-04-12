@@ -198,6 +198,8 @@ class C2SChannel:
         if userid:
             # delete verification entry in validations table
             valdb.delete(code)
+            # touch user so we get a first presence
+            self.broker.storage.touch_user(userid)
 
             # here is your token
             str_token = token.user_token(userid,
