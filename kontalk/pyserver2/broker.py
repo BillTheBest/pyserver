@@ -63,6 +63,8 @@ class MessageBroker:
     '''Map of the queue consumers.
     Queues in this map will contain the collection of workers for specific userids.'''
     _consumers = {}
+    '''Map of channel callbacks.'''
+    _callbacks = {}
     '''Map of presence subscriptions.'''
     _presence = {}
     '''Map of reverse-presence subscriptions.'''
@@ -164,16 +166,17 @@ class MessageBroker:
     def register_user_consumer(self, userid, worker):
         uhash, resource = utils.split_userid(userid)
 
-        try:
-            # stop previous queue if any
-            self._consumers[uhash][resource].stop()
-        except:
-            pass
-
-        if uhash not in self._consumers:
+        if uhash in self._consumers:
+            if resource in self._consumers[uhash]:
+                # resource conflict - stop previous queue worker
+                self._consumers[uhash][resource].stop()
+                # disconnect client
+                self._callbacks[userid]['conflict']()
+        else:
             self._consumers[uhash] = {}
 
-        self._consumers[uhash][resource] = ResizableDispatchQueue(worker)
+        self._callbacks[userid] = { 'conflict' : worker.conflict }
+        self._consumers[uhash][resource] = ResizableDispatchQueue(worker.incoming)
         self._consumers[uhash][resource].start(5)
 
         # mark user as online in the push notifications manager
@@ -200,6 +203,11 @@ class MessageBroker:
             self.storage.stop(userid)
             # touch user
             self.storage.touch_user(userid)
+            try:
+                # remove callbacks
+                del self._callbacks[userid]
+            except:
+                pass
             # stop previous queue if any
             self._consumers[uhash][resource].stop()
             del self._consumers[uhash][resource]

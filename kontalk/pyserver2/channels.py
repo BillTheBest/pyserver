@@ -67,7 +67,7 @@ class C2SChannel:
         if userid:
             log.debug("[%s] user %s logged in." % (tx_id, userid))
             self.userid = userid
-            self.broker.register_user_consumer(userid, self._incoming)
+            self.broker.register_user_consumer(userid, self)
             return True
 
         return False
@@ -275,7 +275,7 @@ class C2SChannel:
             return c2s.RegistrationResponse.STATUS_ERROR
 
 
-    def _incoming(self, data, unused = None):
+    def incoming(self, data, unused = None):
         '''Internal queue worker.'''
         # TODO check for missing keys
         log.debug("incoming message: %s" % data['messageid'])
@@ -295,6 +295,10 @@ class C2SChannel:
             a.url = config.config['fileserver']['download_url'] % data['headers']['filename']
         self.protocol.sendBox(a)
 
+    def conflict(self):
+        '''Called on resource conflict.'''
+        log.debug("resource conflict for %s" % self.userid)
+        self.protocol.transport.loseConnection()
 
 class S2SChannel:
     '''Server channel implementation.'''

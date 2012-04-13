@@ -1,5 +1,5 @@
 [ ] push notifications on startup
-[ ] resource conflicts
+[x] resource conflicts
 [x] touch user (storage) when they validate/register
 [x] broadcast/notification of user status update (subscription-based presence notification)
 [x] user status update/google registration id update
