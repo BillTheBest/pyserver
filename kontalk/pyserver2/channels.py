@@ -33,6 +33,7 @@ class C2SChannel:
     '''Client channel implementation.'''
 
     userid = None
+    zombie = False
 
     def __init__(self, protocol, broker):
         self.protocol = protocol
@@ -46,7 +47,8 @@ class C2SChannel:
         if self.userid:
             addr = self.protocol.transport.getPeer()
             log.debug("user %s (%s) disconnected." % (self.userid, addr.host))
-            self.broker.unregister_user_consumer(self.userid)
+            if not self.zombie:
+                self.broker.unregister_user_consumer(self.userid)
         else:
             log.debug("disconnected.")
 
@@ -298,6 +300,9 @@ class C2SChannel:
     def conflict(self):
         '''Called on resource conflict.'''
         log.debug("resource conflict for %s" % self.userid)
+        # the zombie flag prevents the disconnected() method to unregister from the broker
+        # since any descriptor will be replaced by the new client connection
+        self.zombie = True
         self.protocol.transport.loseConnection()
 
 class S2SChannel:

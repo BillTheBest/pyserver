@@ -134,8 +134,13 @@ class MessageBroker:
                 # store to temporary spool
                 self.storage.store(userid, msg)
                 # send push notifications to all matching users
-                if self.push_manager:
-                    self.push_manager.notify_all(userid)
+                try:
+                    if self.push_manager:
+                        self.push_manager.notify_all(userid)
+                except:
+                    # TODO notify errors
+                    import traceback
+                    traceback.print_exc()
 
 
         elif len(userid) == utils.USERID_LENGTH_RESOURCE:
@@ -157,8 +162,13 @@ class MessageBroker:
             except:
                 log.debug("warning: no listener to deliver message to resource %s!" % resource)
                 # send push notification
-                if self.push_manager:
-                    self.push_manager.notify(userid)
+                try:
+                    if self.push_manager:
+                        self.push_manager.notify(userid)
+                except:
+                    # TODO notify errors
+                    import traceback
+                    traceback.print_exc()
 
         else:
             log.warn("warning: unknown userid format %s" % userid)
