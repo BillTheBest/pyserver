@@ -39,7 +39,7 @@ class PushNotifications:
             server = self._push_server(userid)
             if server:
                 log.debug("pushing notification to %s" % userid)
-                return 'TODO' #server.notify()
+                return server.notify()
         else:
             self._notify_cache[userid] += 1
 
