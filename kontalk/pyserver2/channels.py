@@ -105,7 +105,7 @@ class C2SChannel:
         if attachment and mime in config.config['fileserver']['accept_content']:
             fileid = str(content)
             # TODO check for errors
-            (filename, _mime, _md5sum) = self.broker.storage.get_extra(fileid)
+            (filename, _mime, _md5sum) = self.broker.storage.get_extra(fileid, '')
             # update userids
             self.broker.storage.update_extra_storage(fileid, recipient)
             # TODO risking thumbnail larger than the max allowed size
