@@ -1,5 +1,5 @@
-[ ] time zone problems :)
 [ ] push notifications on startup
+[x] time zone problems :)
 [x] resource conflicts
 [x] touch user (storage) when they validate/register
 [x] broadcast/notification of user status update (subscription-based presence notification)

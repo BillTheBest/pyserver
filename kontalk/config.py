@@ -51,7 +51,7 @@ config = {
             'image/png',
             'image/jpeg'
         ),
-        'download_url' : 'http://10.0.2.2/messenger/download.php?name=%s'
+        'download_url' : 'http://10.0.2.2:6128/download?f=%s'
     },
     'database' : {
         'host' : 'localhost',

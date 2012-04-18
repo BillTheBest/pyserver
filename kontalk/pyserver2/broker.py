@@ -18,7 +18,8 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import os, socket, time
+import os, socket
+from datetime import datetime
 from Queue import Queue
 import pickle, shelve
 import logging as log
@@ -348,7 +349,7 @@ class MessageBroker:
             'messageid' : msg_id,
             'sender' : sender,
             'recipient' : userid,
-            'timestamp' : time.time(),
+            'timestamp' : datetime.utcnow(),
             'need_ack' : need_ack,
             'headers' : headers,
             'payload' : msg
@@ -385,7 +386,7 @@ class MessageBroker:
                         'messageid' : msgid if 'originalid' not in msg else msg['originalid'],
                         'storageid' : msgid,
                         'status' : c2s.ReceiptMessage.Entry.STATUS_SUCCESS,
-                        'timestamp' : time.strftime('%Y-%m-%d %H:%M:%S %z')
+                        'timestamp' : datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')
                     }
                     rcpt_list[backuser].append(e)
 

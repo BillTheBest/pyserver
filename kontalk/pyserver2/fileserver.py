@@ -151,6 +151,7 @@ class FileDownload(resource.Resource):
             info = self.fileserver.storage.get_extra(fn, self.userid)
             if info:
                 (filename, mime, md5sum) = info
+                log.debug("sending file type %s, path %s, md5sum %s" % (mime, filename, md5sum))
                 genfilename = utils.generate_filename(mime)
                 request.setHeader('content-type', mime)
                 request.setHeader('content-length', os.path.getsize(filename))

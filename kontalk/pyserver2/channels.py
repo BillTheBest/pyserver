@@ -286,8 +286,7 @@ class C2SChannel:
         a.message_id = data['messageid']
         if 'originalid' in data:
             a.original_id = data['originalid']
-        # TODO time zone
-        a.timestamp = time.strftime('%Y-%m-%d %H:%M:%S %z', time.localtime(data['timestamp']))
+        a.timestamp = data['timestamp'].strftime('%Y-%m-%d %H:%M:%S')
         a.sender = data['sender']
         a.mime = data['headers']['mime']
         a.flags.extend(data['headers']['flags'])
@@ -295,6 +294,7 @@ class C2SChannel:
         a.need_ack = (data['need_ack'] != broker.MSG_ACK_NONE)
         if 'filename' in data['headers']:
             a.url = config.config['fileserver']['download_url'] % data['headers']['filename']
+        log.debug(a)
         self.protocol.sendBox(a)
 
     def conflict(self):

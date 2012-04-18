@@ -206,8 +206,7 @@ class MySQLStorage(MessageStorage):
 
         # message metadata
         dm['messageid'] = msg['id']
-        timestamp = long(time.mktime(msg['timestamp'].timetuple()))
-        dm['timestamp'] = timestamp
+        dm['timestamp'] = msg['timestamp']
         if msg['orig_id']:
             dm['originalid'] = msg['orig_id']
         dm['sender'] = msg['sender']
