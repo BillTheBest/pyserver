@@ -294,7 +294,6 @@ class C2SChannel:
         a.need_ack = (data['need_ack'] != broker.MSG_ACK_NONE)
         if 'filename' in data['headers']:
             a.url = config.config['fileserver']['download_url'] % data['headers']['filename']
-        log.debug(a)
         self.protocol.sendBox(a)
 
     def conflict(self):
