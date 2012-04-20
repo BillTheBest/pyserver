@@ -14,7 +14,7 @@ config = {
         'fileserver.bind' : ('localhost', utils.DEFAULT_CLIENT_HTTP_PORT),
         'c2s.pack_size_max' : 1048576,  # 1 MB
         's2s.pack_size_max' : 10485760, # 10 MB
-        'push_notifications' : True,
+        'push_notifications' : False,
         'supports.google_c2dm' : True
     },
     'registration' : {
