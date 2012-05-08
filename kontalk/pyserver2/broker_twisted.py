@@ -66,6 +66,17 @@ class C2SServerProtocol(InternalServerProtocol):
         txprotobuf.Protocol.__init__(self, c2s)
         self.MAX_LENGTH = config.config['server']['c2s.pack_size_max']
         self.idler = LoopingCall(self.onIdle)
+        if 'reset' not in dir(self.idler):
+            def reset(self):
+                try:
+                    self.idler.stop()
+                except:
+                    pass
+                try:
+                    self.idler.start(IDLE_DELAY, False)
+                except:
+                    pass
+            self.idler.reset = reset
 
     def connectionMade(self):
         InternalServerProtocol.connectionMade(self)
@@ -99,7 +110,10 @@ class C2SServerProtocol(InternalServerProtocol):
 
     def boxReceived(self, data, tx_id = None):
         # reset idler
-        self.idler.reset()
+        try:
+            self.idler.reset()
+        except:
+            pass
 
         # optional reply
         r = None
@@ -222,7 +236,10 @@ class C2SServerProtocol(InternalServerProtocol):
             self.sendBox(r, tx_id)
 
         # reset idler (again)
-        self.idler.reset()
+        try:
+            self.idler.reset()
+        except:
+            pass
 
 
 class InternalServerFactory(ServerFactory):
