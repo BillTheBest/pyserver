@@ -20,12 +20,22 @@
 
 
 from twisted.internet.protocol import ServerFactory, connectionDone
+from twisted.internet.task import LoopingCall
+from twisted.internet import reactor
 
+import time
 from kontalklib import txprotobuf
 
 import kontalk.config as config
 import kontalklib.c2s_pb2 as c2s
 import kontalklib.s2s_pb2 as s2s
+
+# in 30 seconds clients will be kicked out if they don't respond
+
+# how many seconds to wait for next idle signal
+IDLE_DELAY = 15
+# how many seconds to wait for ping response
+PING_DELAY = 15
 
 
 class InternalServerProtocol(txprotobuf.Protocol):
@@ -49,12 +59,48 @@ class S2SServerProtocol(InternalServerProtocol):
 
 
 class C2SServerProtocol(InternalServerProtocol):
+    pinger = None
+    ping_txid = None
 
     def __init__(self):
         txprotobuf.Protocol.__init__(self, c2s)
         self.MAX_LENGTH = config.config['server']['c2s.pack_size_max']
+        self.idler = LoopingCall(self.onIdle)
+
+    def connectionMade(self):
+        InternalServerProtocol.connectionMade(self)
+        # start idler
+        self.idler.start(IDLE_DELAY, False)
+
+    def connectionLost(self, reason=connectionDone):
+        try:
+            # stop idler
+            self.idler.stop()
+        except:
+            pass
+        InternalServerProtocol.connectionLost(self, reason)
+
+    def onIdle(self):
+        self.service.idle()
+        # send ping
+        a = c2s.Ping()
+        a.timestamp = long(time.time())
+        self.ping_txid = self.sendBox(a)
+        # ping is sent, wait for response
+        if not self.pinger:
+            self.pinger = reactor.callLater(PING_DELAY, self.pingTimeout)
+
+    def pingTimeout(self):
+        try:
+            self.idler.stop()
+        except:
+            pass
+        self.service.ping_timeout()
 
     def boxReceived(self, data, tx_id = None):
+        # reset idler
+        self.idler.reset()
+
         # optional reply
         r = None
         name = data.__class__.__name__
@@ -163,8 +209,20 @@ class C2SServerProtocol(InternalServerProtocol):
                 r = c2s.UserPresenceSubscribeResponse()
                 r.status = self.service.user_presence_subscribe(str(data.user_id), data.events)
 
+        elif name == 'Pong':
+            # client has responded: check tx_id
+            if self.ping_txid == tx_id:
+                # reset ping timeout check
+                try:
+                    self.pinger.cancel()
+                except:
+                    pass
+
         if r:
             self.sendBox(r, tx_id)
+
+        # reset idler (again)
+        self.idler.reset()
 
 
 class InternalServerFactory(ServerFactory):

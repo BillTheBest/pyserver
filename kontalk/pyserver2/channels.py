@@ -304,6 +304,14 @@ class C2SChannel:
         self.zombie = True
         self.protocol.transport.loseConnection()
 
+    def idle(self):
+        log.debug("idle connection, sending ping")
+
+    def ping_timeout(self):
+        '''Called on ping timeout.'''
+        log.debug("ping timeout for %s" % self.userid)
+        self.protocol.transport.loseConnection()
+
 class S2SChannel:
     '''Server channel implementation.'''
     # TODO
