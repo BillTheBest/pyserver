@@ -305,7 +305,8 @@ class C2SChannel:
         self.protocol.transport.loseConnection()
 
     def idle(self):
-        log.debug("idle connection, sending ping")
+        # too much verbose -- log.debug("idle connection, sending ping")
+        pass
 
     def ping_timeout(self):
         '''Called on ping timeout.'''
