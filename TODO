@@ -1,4 +1,4 @@
-[ ] push notifications on startup
+[x] push notifications on startup
 [x] time zone problems :)
 [x] resource conflicts
 [x] touch user (storage) when they validate/register

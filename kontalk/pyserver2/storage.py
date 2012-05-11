@@ -76,7 +76,9 @@ class MessageStorage:
         pass
 
 class PersistentDictStorage(MessageStorage):
-    '''PersistentDict-based message storage.'''
+    '''PersistentDict-based message storage.
+    WARNING not up-to-date with MessageStorage interface
+    '''
 
     '''Map of mailbox storages.'''
     _mboxes = {}
@@ -225,13 +227,19 @@ class MySQLStorage(MessageStorage):
         dm['payload'] = msg['content']
         return dm
 
-
     def load(self, uid):
         '''Loads a storage for a userid.'''
         msgdict = {}
-        msglist = self.msgdb.incoming(uid, True)
-        for msg in msglist:
-            msgdict[msg['id']] = self._format_msg(msg)
+
+        #special case: null uid -- retrieve message count by userid
+        if not uid:
+            msglist = self.msgdb.need_notification()
+            for msg in msglist:
+                msgdict[msg['recipient']] = msg['num']
+        else:
+            msglist = self.msgdb.incoming(uid, True)
+            for msg in msglist:
+                msgdict[msg['id']] = self._format_msg(msg)
 
         return msgdict
 

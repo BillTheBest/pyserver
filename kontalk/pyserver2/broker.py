@@ -102,6 +102,22 @@ class MessageBroker:
             factory=factory, interface=config.config['server']['s2s.bind'][0])
         service.setServiceParent(self.application)
 
+        if self.push_manager:
+            self._push_init()
+
+    def _push_init(self):
+        '''Sends push messages on startup for incoming messages.'''
+        # FIXME this might trigger notifications even when it's not needed
+        msglist = self.storage.load(None)
+        for uhash, count in msglist.items():
+            log.debug("push notifying user %s" % uhash)
+            try:
+                self.push_manager.notify_all(uhash)
+            except:
+                # TODO notify errors
+                import traceback
+                traceback.print_exc()
+
     def _usermsg_worker(self, msg):
         userid = msg['recipient']
         need_ack = msg['need_ack']
