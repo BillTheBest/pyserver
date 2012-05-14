@@ -19,7 +19,7 @@
 '''
 
 
-import time
+import os, time
 import logging as log
 
 from kontalklib import token, database, utils
@@ -294,6 +294,8 @@ class C2SChannel:
         a.need_ack = (data['need_ack'] != broker.MSG_ACK_NONE)
         if 'filename' in data['headers']:
             a.url = config.config['fileserver']['download_url'] % data['headers']['filename']
+            (filename, _mime, _md5sum) = self.broker.storage.get_extra(data['headers']['filename'], self.userid)
+            a.length = os.path.getsize(filename)
         self.protocol.sendBox(a)
 
     def conflict(self):
