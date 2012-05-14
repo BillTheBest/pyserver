@@ -89,6 +89,11 @@ class C2SServerProtocol(InternalServerProtocol):
             self.idler.stop()
         except:
             pass
+        try:
+            # stop pinger
+            self.pinger.stop()
+        except:
+            pass
         InternalServerProtocol.connectionLost(self, reason)
 
     def onIdle(self):
@@ -107,6 +112,7 @@ class C2SServerProtocol(InternalServerProtocol):
         except:
             pass
         self.service.ping_timeout()
+        self.pinger = None
 
     def boxReceived(self, data, tx_id = None):
         # reset idler
@@ -231,6 +237,7 @@ class C2SServerProtocol(InternalServerProtocol):
                     self.pinger.cancel()
                 except:
                     pass
+                self.pinger = None
 
         if r:
             self.sendBox(r, tx_id)
