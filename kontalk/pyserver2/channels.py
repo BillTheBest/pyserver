@@ -147,20 +147,27 @@ class C2SChannel:
         ret = []
         for u in users:
             userid = str(u)
+            stat = self.broker.storage.get_user_stat(userid)
             # check if user is online, otherwise ask storage
             if self.broker.user_online(userid):
-                ret.append({
+                dd = {
                     'userid' : userid,
                     'timediff' : 0
-                })
+                }
+                if stat and stat['status']:
+                    dd['status'] = stat['status']
+                ret.append(dd)
             else:
-                timestamp = self.broker.storage.get_timestamp(userid)
-                if timestamp:
-                    ret.append({
+                if stat and stat['timestamp']:
+                    dd = {
                         'userid' : userid,
-                        'timestamp' : timestamp,
-                        'timediff' : long(time.time()-timestamp)
-                    })
+                        'timestamp' : stat['timestamp'],
+                        'timediff' : long(time.time()-stat['timestamp']),
+                    }
+                    if stat and stat['status']:
+                        dd['status'] = stat['status']
+
+                    ret.append(dd)
 
         return ret
 

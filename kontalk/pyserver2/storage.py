@@ -75,6 +75,11 @@ class MessageStorage:
         '''Updates fields of the user status table.'''
         pass
 
+    def get_user_stat(self, uid):
+        '''Retrieves user stat data.'''
+        pass
+
+
 class PersistentDictStorage(MessageStorage):
     '''PersistentDict-based message storage.
     WARNING not up-to-date with MessageStorage interface
@@ -325,3 +330,10 @@ class MySQLStorage(MessageStorage):
         # TODO optimize access to database
         if len(uid) == utils.USERID_LENGTH_RESOURCE:
             self.userdb.update(uid, None, **fields)
+
+    def get_user_stat(self, uid):
+        '''Retrieves user stat data.'''
+        dd = self.userdb.get(uid, False)
+        if dd:
+            dd['timestamp'] = long(time.mktime(dd['timestamp'].timetuple()))
+        return dd
