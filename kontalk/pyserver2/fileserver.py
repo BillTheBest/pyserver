@@ -183,18 +183,37 @@ class FileUpload(resource.Resource):
         self.fileserver = fileserver
         self.userid = userid
 
+    def _quick_response(self, request, code, text):
+        request.setResponseCode(code)
+        request.setHeader('content-type', 'text/plain')
+        return text
+
+    def bad_request(self, request):
+        return self._quick_response(request, 400, 'bad request')
+
     def render_POST(self, request):
         log.debug("request from %s: %s" % (self.userid, request.requestHeaders))
         a = c2s.FileUploadResponse()
 
+        # check mime type
         mime = request.getHeader('content-type')
         if mime not in config.config['fileserver']['accept_content']:
             a.status = c2s.FileUploadResponse.STATUS_UNSUPPORTED
         else:
-            # store file to storage
-            (filename, fileid) = self.fileserver.storage.extra_storage(('', ), mime, request.content.read())
-            a.status = c2s.FileUploadResponse.STATUS_SUCCESS
-            a.file_id = fileid
+            # check length
+            length = request.getHeader('content-length')
+            if length != None:
+                length = long(length)
+                if length <= config.config['fileserver']['max_size']:
+                    # store file to storage
+                    # TODO convert to file-object management for lighter memory consumption
+                    (filename, fileid) = self.fileserver.storage.extra_storage(('', ), mime, request.content.read())
+                    a.status = c2s.FileUploadResponse.STATUS_SUCCESS
+                    a.file_id = fileid
+                else:
+                    a.status = c2s.FileUploadResponse.STATUS_BIG
+            else:
+                a.status = c2s.FileUploadResponse.STATUS_ERROR
 
         request.setHeader('content-type', 'application/x-google-protobuf')
         return a.SerializeToString()
