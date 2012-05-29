@@ -318,7 +318,7 @@ class MySQLStorage(MessageStorage):
         '''Returns the full path of a file in the extra storage.'''
         att = self.attdb.get(name, uid)
         if att:
-            return os.path.join(self._extra_path, att['filename']), att['mime'], att['md5sum']
+            return str(os.path.join(self._extra_path, att['filename'])), str(att['mime']), str(att['md5sum'])
 
     def touch_user(self, uid):
         '''Updates user last seen time to now.'''
