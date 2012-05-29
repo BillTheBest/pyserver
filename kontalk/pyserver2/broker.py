@@ -152,7 +152,8 @@ class MessageBroker:
                 self.storage.store(userid, msg)
                 # send push notifications to all matching users
                 try:
-                    if self.push_manager:
+                    # do not push for receipts
+                    if self.push_manager and msg['headers']['mime'] != MIME_RECEIPT:
                         self.push_manager.notify_all(userid)
                 except:
                     # TODO notify errors
@@ -180,7 +181,8 @@ class MessageBroker:
                 log.debug("warning: no listener to deliver message to resource %s!" % resource)
                 # send push notification
                 try:
-                    if self.push_manager:
+                    # do not push for receipts
+                    if self.push_manager and msg['headers']['mime'] != MIME_RECEIPT:
                         self.push_manager.notify(userid)
                 except:
                     # TODO notify errors
