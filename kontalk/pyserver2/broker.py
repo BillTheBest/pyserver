@@ -22,9 +22,9 @@ import os, socket
 from datetime import datetime
 from Queue import Queue
 import pickle, shelve
-import logging as log
+import kontalklib.logging as log
 
-from twisted.application import internet
+from twisted.application import internet, service
 from twisted.internet.defer import Deferred
 
 # local imports
@@ -58,7 +58,7 @@ USER_EVENT_MASKS = {
 }
 
 
-class MessageBroker:
+class MessageBroker(service.Service):
     '''Message broker connection manager.'''
 
     '''Map of the queue consumers.
@@ -74,10 +74,11 @@ class MessageBroker:
     push_manager = None
 
     def __init__(self, application):
-        self.application = application
+        self.setServiceParent(application)
         self.storage = config.config['broker']['storage'][0](*config.config['broker']['storage'][1:])
 
-    def setup(self):
+    def startService(self):
+        service.Service.startService(self)
         log.debug("broker init")
 
         # estabilish a connection to the database
@@ -92,15 +93,15 @@ class MessageBroker:
 
         # create listening service for clients
         factory = InternalServerFactory(C2SServerProtocol, C2SChannel, self)
-        service = internet.TCPServer(port=config.config['server']['c2s.bind'][1],
+        c2s_service = internet.TCPServer(port=config.config['server']['c2s.bind'][1],
             factory=factory, interface=config.config['server']['c2s.bind'][0])
-        service.setServiceParent(self.application)
+        c2s_service.setServiceParent(self.parent)
 
         # create listening service for servers
         factory = InternalServerFactory(S2SServerProtocol, S2SChannel, self)
-        service = internet.TCPServer(port=config.config['server']['s2s.bind'][1],
+        s2s_service = internet.TCPServer(port=config.config['server']['s2s.bind'][1],
             factory=factory, interface=config.config['server']['s2s.bind'][0])
-        service.setServiceParent(self.application)
+        s2s_service.setServiceParent(self.parent)
 
         if self.push_manager:
             self._push_init()

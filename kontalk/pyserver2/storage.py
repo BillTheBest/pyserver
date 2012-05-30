@@ -21,7 +21,7 @@
 
 import os, time
 from kontalklib import database, utils
-import logging as log
+import kontalklib.logging as log
 
 
 class MessageStorage:

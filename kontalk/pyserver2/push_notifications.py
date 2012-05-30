@@ -18,10 +18,10 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import logging as log
 import urllib, urllib2
 
 import kontalk.config as config
+import kontalklib.logging as log
 from kontalklib import database
 
 

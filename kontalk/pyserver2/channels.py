@@ -20,7 +20,7 @@
 
 
 import os, time
-import logging as log
+import kontalklib.logging as log
 
 from kontalklib import token, database, utils
 import kontalk.config as config

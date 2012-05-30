@@ -18,7 +18,7 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import logging as log
+import kontalklib.logging as log
 from Queue import Queue
 
 from twisted.application import internet, service
@@ -38,10 +38,7 @@ class Pyserver2App:
         self.print_version()
 
         self.broker = MessageBroker(self.application)
-        self.broker.setup()
-
         self.fileserver = Fileserver(self.application, self.broker)
-        self.fileserver.setup()
 
         return self.application
 

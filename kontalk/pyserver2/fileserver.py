@@ -19,12 +19,12 @@
 '''
 
 
-import logging as log
+import kontalklib.logging as log
 import os, time
 
 from zope.interface import implements
 
-from twisted.application import internet
+from twisted.application import internet, service
 from twisted.python import failure
 from twisted.internet import defer
 from twisted.web import server, resource, iweb
@@ -246,18 +246,19 @@ class FileDownloadRealm(object):
         return interfaces[0], downloader, downloader.logout
 
 
-class Fileserver(resource.Resource):
+class Fileserver(resource.Resource, service.Service):
     '''Fileserver connection manager.'''
 
     def __init__(self, application, broker):
         resource.Resource.__init__(self)
-        self.application = application
+        self.setServiceParent(application)
         self.broker = broker
+
+    def startService(self):
+        service.Service.startService(self)
+        log.debug("fileserver init")
         self.storage = self.broker.storage
         self.db = self.broker.db
-
-    def setup(self):
-        log.debug("fileserver init")
 
         # setup upload endpoint
         portal = Portal(FileUploadRealm(self), [AuthKontalkToken(self.db)])
@@ -275,6 +276,6 @@ class Fileserver(resource.Resource):
 
         # create http service
         factory = server.Site(self)
-        service = internet.TCPServer(port=config.config['server']['fileserver.bind'][1],
+        fs_service = internet.TCPServer(port=config.config['server']['fileserver.bind'][1],
             factory=factory, interface=config.config['server']['fileserver.bind'][0])
-        service.setServiceParent(self.application)
+        fs_service.setServiceParent(self.parent)
