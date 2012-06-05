@@ -205,12 +205,16 @@ class C2SChannel:
 
         userid = valdb.get_userid(code)
         if userid:
+            # damn unicode!
+            userid = str(userid)
+
             # delete verification entry in validations table
             valdb.delete(code)
             # touch user so we get a first presence
             self.broker.storage.touch_user(userid)
 
             # here is your token
+            log.debug("generating token for %s" % userid)
             str_token = token.user_token(userid,
                 config.config['server']['fingerprint'])
             return c2s.ValidationResponse.STATUS_SUCCESS, str_token
@@ -219,7 +223,7 @@ class C2SChannel:
             return c2s.ValidationResponse.STATUS_FAILED, None
 
     def register_user(self, tx_id, username):
-        log.debug("registering username %s" % username)
+        log.debug("registering username %s via %s" % (username, config.config['registration']['type']))
         if config.config['registration']['type'] == 'sms':
             res = self._register_sms(username)
             d = { 'status' : res }
