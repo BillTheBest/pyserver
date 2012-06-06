@@ -20,7 +20,6 @@
 
 import urllib, urllib2
 
-import kontalk.config as config
 import kontalklib.logging as log
 from kontalklib import database
 
@@ -28,7 +27,8 @@ from kontalklib import database
 class PushNotifications:
     '''Push notifications manager.'''
 
-    def __init__(self, db):
+    def __init__(self, config, db):
+        self._config = config
         self._db = db
         self._cachedb = database.usercache(db)
         self._notify_cache = {}
@@ -60,7 +60,7 @@ class PushNotifications:
         '''Returns a PushServer instance for the given userid - if available.'''
         e = self._cachedb.get(userid, True)
         if e[GooglePush.field]:
-            return GooglePush(userid, e[GooglePush.field])
+            return GooglePush(self._config, userid, e[GooglePush.field])
 
 
 class PushServer:
@@ -81,9 +81,9 @@ class GooglePush(PushServer):
     # usercache field for registration id
     field = 'google_registrationid'
 
-    def __init__(self, userid, regid):
+    def __init__(self, config, userid, regid):
         # TODO request token by using credentials
-        self.token = config.config['google_c2dm']['token']
+        self.token = config['google_c2dm']['token']
         self.userid = userid
         self.regid = regid
 

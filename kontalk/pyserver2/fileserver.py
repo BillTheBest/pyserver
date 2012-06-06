@@ -35,7 +35,6 @@ from twisted.protocols.basic import FileSender
 from twisted.python.log import err
 
 import kontalklib.c2s_pb2 as c2s
-import kontalk.config as config
 from kontalklib import database, token, utils
 
 
@@ -48,13 +47,14 @@ class IKontalkToken(credentials.ICredentials):
 class KontalkToken(object):
     implements(IKontalkToken)
 
-    def __init__(self, token):
+    def __init__(self, token, config):
         self.token = token
+        self.config = config
 
     def checkToken(self, db):
         log.debug("checking token %s", self.token)
         try:
-            return token.verify_user_token(self.token, database.servers(db), config.config['server']['fingerprint'])
+            return token.verify_user_token(self.token, database.servers(db), self.config['server']['fingerprint'])
         except:
             import traceback
             traceback.print_exc()
@@ -88,6 +88,9 @@ class AuthKontalkTokenFactory(object):
 
     scheme = 'kontalktoken'
 
+    def __init__(self, config):
+        self.config = config
+
     def getChallenge(self, request):
         log.debug(('getChallenge', request))
         return {}
@@ -96,15 +99,16 @@ class AuthKontalkTokenFactory(object):
         key, token = response.split('=', 1)
         log.debug("got token from request: %s", token)
         if key == 'auth':
-            return KontalkToken(token)
+            return KontalkToken(token, self.config)
 
         raise error.LoginFailed('Invalid token')
 
 
 class ServerlistDownload(resource.Resource):
-    def __init__(self, db):
+    def __init__(self, fileserver):
         resource.Resource.__init__(self)
-        self.servers = database.servers(db)
+        self.servers = database.servers(fileserver.db)
+        self.config = fileserver.config
 
     def render_GET(self, request):
         a = c2s.ServerList()
@@ -112,9 +116,9 @@ class ServerlistDownload(resource.Resource):
 
         # add ourselves first
         e = a.entry.add()
-        e.address = config.config['server']['host']
-        e.port = config.config['server']['c2s.bind'][1]
-        e.http_port = config.config['server']['fileserver.bind'][1]
+        e.address = self.config['server']['host']
+        e.port = self.config['server']['c2s.bind'][1]
+        e.http_port = self.config['server']['fileserver.bind'][1]
 
         srvlist = self.servers.get_list(False, True)
         for srv in srvlist:
@@ -181,6 +185,7 @@ class FileUpload(resource.Resource):
     def __init__(self, fileserver, userid):
         resource.Resource.__init__(self)
         self.fileserver = fileserver
+        self.config = fileserver.config
         self.userid = userid
 
     def _quick_response(self, request, code, text):
@@ -197,14 +202,14 @@ class FileUpload(resource.Resource):
 
         # check mime type
         mime = request.getHeader('content-type')
-        if mime not in config.config['fileserver']['accept_content']:
+        if mime not in self.config['fileserver']['accept_content']:
             a.status = c2s.FileUploadResponse.STATUS_UNSUPPORTED
         else:
             # check length
             length = request.getHeader('content-length')
             if length != None:
                 length = long(length)
-                if length <= config.config['fileserver']['max_size']:
+                if length <= self.config['fileserver']['max_size']:
                     # store file to storage
                     # TODO convert to file-object management for lighter memory consumption
                     (filename, fileid) = self.fileserver.storage.extra_storage(('', ), mime, request.content.read())
@@ -249,9 +254,10 @@ class FileDownloadRealm(object):
 class Fileserver(resource.Resource, service.Service):
     '''Fileserver connection manager.'''
 
-    def __init__(self, application, broker):
+    def __init__(self, application, config, broker):
         resource.Resource.__init__(self)
         self.setServiceParent(application)
+        self.config = config
         self.broker = broker
 
     def startService(self):
@@ -262,7 +268,7 @@ class Fileserver(resource.Resource, service.Service):
 
         # setup upload endpoint
         portal = Portal(FileUploadRealm(self), [AuthKontalkToken(self.db)])
-        credFactory = AuthKontalkTokenFactory()
+        credFactory = AuthKontalkTokenFactory(self.config)
         resource = HTTPAuthSessionWrapper(portal, [credFactory])
         self.putChild('upload', resource)
 
@@ -272,10 +278,10 @@ class Fileserver(resource.Resource, service.Service):
         self.putChild('download', resource)
 
         # setup serverlist endpoint
-        self.putChild('serverlist', ServerlistDownload(self.db))
+        self.putChild('serverlist', ServerlistDownload(self))
 
         # create http service
         factory = server.Site(self)
-        fs_service = internet.TCPServer(port=config.config['server']['fileserver.bind'][1],
-            factory=factory, interface=config.config['server']['fileserver.bind'][0])
+        fs_service = internet.TCPServer(port=self.config['server']['fileserver.bind'][1],
+            factory=factory, interface=self.config['server']['fileserver.bind'][0])
         fs_service.setServiceParent(self.parent)

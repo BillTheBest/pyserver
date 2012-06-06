@@ -20,6 +20,7 @@
 
 import kontalklib.logging as log
 from Queue import Queue
+import json
 
 from twisted.application import internet, service
 
@@ -33,12 +34,23 @@ class Pyserver2App:
 
     def __init__ (self, argv):
         self.application = service.Application("Pyserver2")
+        self._cfgfile = 'server.conf'
+        for i in range(len(argv)):
+            if argv[i] == '-c':
+                self._cfgfile = argv[i + 1]
 
     def setup(self):
         self.print_version()
 
-        self.broker = MessageBroker(self.application)
-        self.fileserver = Fileserver(self.application, self.broker)
+        # load configuration
+        fp = open(self._cfgfile, 'r')
+        self.config = json.load(fp)
+        fp.close()
+
+        # broker service
+        self.broker = MessageBroker(self.application, self.config)
+        # fileserver service
+        self.fileserver = Fileserver(self.application, self.config, self.broker)
 
         return self.application
 

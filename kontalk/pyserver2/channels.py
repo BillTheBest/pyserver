@@ -23,7 +23,6 @@ import os, time
 import kontalklib.logging as log
 
 from kontalklib import token, database, utils
-import kontalk.config as config
 import kontalklib.c2s_pb2 as c2s
 
 import version, broker
@@ -35,9 +34,10 @@ class C2SChannel:
     userid = None
     zombie = False
 
-    def __init__(self, protocol, broker):
+    def __init__(self, protocol, broker, config):
         self.protocol = protocol
         self.broker = broker
+        self.config = config
 
     def connected(self):
         addr = self.protocol.transport.getPeer()
@@ -59,7 +59,7 @@ class C2SChannel:
         '''Client tried to authenticate.'''
         log.debug("[%s] authenticating token: %s" % (tx_id, auth_token))
         try:
-            userid = token.verify_user_token(auth_token, database.servers(self.broker.db), config.config['server']['fingerprint'])
+            userid = token.verify_user_token(auth_token, database.servers(self.broker.db), self.config['server']['fingerprint'])
         except:
             import traceback
             traceback.print_exc()
@@ -80,15 +80,15 @@ class C2SChannel:
             'version' : '%s %s' % (version.PACKAGE, version.VERSION),
             'client-protocol' : version.CLIENT_PROTOCOL,
             'server-protocol' : version.SERVER_PROTOCOL,
-            'fingerprint' : config.config['server']['fingerprint'],
+            'fingerprint' : self.config['server']['fingerprint'],
             'supports' : []
         }
 
         # TODO supports should be modular
         # support for Google C2DM push notification service
         try:
-            if config.config['server']['supports.google_c2dm']:
-                email = config.config['google_c2dm']['email']
+            if self.config['server']['supports.google_c2dm']:
+                email = self.config['google_c2dm']['email']
                 info['supports'].append('google_c2dm=' + email)
         except:
             pass
@@ -102,7 +102,7 @@ class C2SChannel:
 
         # are we sending an attachment message?
         attachment = 'attachment' in flags
-        if attachment and mime in config.config['fileserver']['accept_content']:
+        if attachment and mime in self.config['fileserver']['accept_content']:
             fileid = str(content)
             # TODO check for errors
             (filename, _mime, _md5sum) = self.broker.storage.get_extra(fileid, '')
@@ -117,13 +117,13 @@ class C2SChannel:
         for rcpt in recipient:
             u = str(rcpt)
             length = len(content)
-            mime_supported = mime in config.config['fileserver']['accept_content'] \
-                if attachment else mime in config.config['broker']['accept_content']
+            mime_supported = mime in self.config['fileserver']['accept_content'] \
+                if attachment else mime in self.config['broker']['accept_content']
             if not mime_supported:
                 log.debug("[%s] mime type not supported: %s - dropping" % \
                     (tx_id, mime))
                 res[u] = c2s.MessagePostResponse.MessageSent.STATUS_NOTSUPPORTED
-            elif length > config.config['broker']['max_size']:
+            elif length > self.config['broker']['max_size']:
                 log.debug("[%s] message too big (%d bytes) - dropping" % \
                     (tx_id, length))
                 res[u] = c2s.MessagePostResponse.MessageSent.STATUS_BIG
@@ -216,19 +216,19 @@ class C2SChannel:
             # here is your token
             log.debug("generating token for %s" % userid)
             str_token = token.user_token(userid,
-                config.config['server']['fingerprint'])
+                self.config['server']['fingerprint'])
             return c2s.ValidationResponse.STATUS_SUCCESS, str_token
 
         else:
             return c2s.ValidationResponse.STATUS_FAILED, None
 
     def register_user(self, tx_id, username):
-        log.debug("registering username %s via %s" % (username, config.config['registration']['type']))
-        if config.config['registration']['type'] == 'sms':
+        log.debug("registering username %s via %s" % (username, self.config['registration']['type']))
+        if self.config['registration']['type'] == 'sms':
             res = self._register_sms(username)
             d = { 'status' : res }
             if res == c2s.RegistrationResponse.STATUS_CONTINUE:
-                    d['sms_from'] = config.config['registration']['from']
+                    d['sms_from'] = self.config['registration']['from']
             return d
 
         else:
@@ -262,9 +262,9 @@ class C2SChannel:
         if ret[0] > 0:
             # send SMS
             code = ret[1]
-            sms_from = config.config['registration']['from']
+            sms_from = self.config['registration']['from']
 
-            if config.config['registration']['android_emu']:
+            if self.config['registration']['android_emu']:
                 # android emulation
                 import os
                 os.system('adb emu sms send %s %s' % (sms_from, code))
@@ -273,8 +273,8 @@ class C2SChannel:
                 from nexmomessage import NexmoMessage
                 msg = {
                     'reqtype' : 'json',
-                    'username' : config.config['registration']['nx.username'],
-                    'password': config.config['registration']['nx.password'],
+                    'username' : self.config['registration']['nx.username'],
+                    'password': self.config['registration']['nx.password'],
                     'from': sms_from,
                     'to': phone
                 }
@@ -304,7 +304,7 @@ class C2SChannel:
         a.content = data['payload']
         a.need_ack = (data['need_ack'] != broker.MSG_ACK_NONE)
         if 'filename' in data['headers']:
-            a.url = config.config['fileserver']['download_url'] % data['headers']['filename']
+            a.url = self.config['fileserver']['download_url'] % data['headers']['filename']
             (filename, _mime, _md5sum) = self.broker.storage.get_extra(data['headers']['filename'], self.userid)
             a.length = os.path.getsize(filename)
         self.protocol.sendBox(a)
@@ -351,7 +351,7 @@ class S2SChannel:
     TODO
     def handshake(self, tx_id, auth_token):
         log.debug("authenticating token: %s" % auth_token)
-        userid = token.verify_user_token(auth_token, self.broker.db.servers(), config.config['server']['fingerprint'])
+        userid = token.verify_user_token(auth_token, self.broker.db.servers(), self.config['server']['fingerprint'])
         if userid:
             log.debug("server %s logged in." % userid)
             self.userid = userid

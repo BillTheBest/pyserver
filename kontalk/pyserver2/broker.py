@@ -28,13 +28,12 @@ from twisted.application import internet, service
 from twisted.internet.defer import Deferred
 
 # local imports
+import storage
 from channels import *
 from broker_twisted import *
 import version, storage
 from txrdq import ResizableDispatchQueue
-from push_notifications import PushNotifications
 
-import kontalk.config as config
 from kontalklib import database, utils
 
 # mime type for receipt messages
@@ -73,34 +72,36 @@ class MessageBroker(service.Service):
     '''The push notifications manager.'''
     push_manager = None
 
-    def __init__(self, application):
+    def __init__(self, application, config):
         self.setServiceParent(application)
-        self.storage = config.config['broker']['storage'][0](*config.config['broker']['storage'][1:])
+        self.config = config
+        self.storage = storage.__dict__[config['broker']['storage'][0]](*config['broker']['storage'][1:])
 
     def startService(self):
         service.Service.startService(self)
         log.debug("broker init")
 
         # estabilish a connection to the database
-        self.db = database.connect_config(config.config)
+        self.db = database.connect_config(self.config)
         # datasource it will not be used if not neededs
         self.storage.set_datasource(self.db)
 
         # create push notifications manager
-        if config.config['server']['push_notifications']:
+        if self.config['server']['push_notifications']:
             log.debug("enabling push notifications support")
-            self.push_manager = PushNotifications(self.db)
+            from push_notifications import PushNotifications
+            self.push_manager = PushNotifications(self.config, self.db)
 
         # create listening service for clients
-        factory = InternalServerFactory(C2SServerProtocol, C2SChannel, self)
-        c2s_service = internet.TCPServer(port=config.config['server']['c2s.bind'][1],
-            factory=factory, interface=config.config['server']['c2s.bind'][0])
+        factory = InternalServerFactory(C2SServerProtocol, C2SChannel, self, self.config)
+        c2s_service = internet.TCPServer(port=self.config['server']['c2s.bind'][1],
+            factory=factory, interface=self.config['server']['c2s.bind'][0])
         c2s_service.setServiceParent(self.parent)
 
         # create listening service for servers
-        factory = InternalServerFactory(S2SServerProtocol, S2SChannel, self)
-        s2s_service = internet.TCPServer(port=config.config['server']['s2s.bind'][1],
-            factory=factory, interface=config.config['server']['s2s.bind'][0])
+        factory = InternalServerFactory(S2SServerProtocol, S2SChannel, self, self.config)
+        s2s_service = internet.TCPServer(port=self.config['server']['s2s.bind'][1],
+            factory=factory, interface=self.config['server']['s2s.bind'][0])
         s2s_service.setServiceParent(self.parent)
 
         if self.push_manager:

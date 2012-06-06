@@ -26,7 +26,6 @@ from twisted.internet import reactor
 import time
 from kontalklib import txprotobuf
 
-import kontalk.config as config
 import kontalklib.c2s_pb2 as c2s
 import kontalklib.s2s_pb2 as s2s
 
@@ -49,9 +48,9 @@ class InternalServerProtocol(txprotobuf.Protocol):
 
 class S2SServerProtocol(InternalServerProtocol):
 
-    def __init__(self):
+    def __init__(self, config):
         txprotobuf.Protocol.__init__(self, s2s)
-        self.MAX_LENGTH = config.config['server']['s2s.pack_size_max']
+        self.MAX_LENGTH = config['server']['s2s.pack_size_max']
 
     def boxReceived(self, data, tx_id = None):
         # TODO
@@ -62,9 +61,9 @@ class C2SServerProtocol(InternalServerProtocol):
     pinger = None
     ping_txid = None
 
-    def __init__(self):
+    def __init__(self, config):
         txprotobuf.Protocol.__init__(self, c2s)
-        self.MAX_LENGTH = config.config['server']['c2s.pack_size_max']
+        self.MAX_LENGTH = config['server']['c2s.pack_size_max']
         self.idler = LoopingCall(self.onIdle)
         if 'reset' not in dir(self.idler):
             def reset(self):
@@ -251,15 +250,16 @@ class C2SServerProtocol(InternalServerProtocol):
 
 class InternalServerFactory(ServerFactory):
 
-    def __init__(self, protocol, service_class, broker):
+    def __init__(self, protocol, service_class, broker, config):
         self.protocol = protocol
         self.protocols = []
         self.service = service_class
         self.broker = broker
+        self.config = config
 
     def buildProtocol(self, address):
-        p = self.protocol()
+        p = self.protocol(self.config)
         p.factory = self
-        p.service = self.service(protocol=p, broker=self.broker)
+        p.service = self.service(protocol=p, broker=self.broker, config=self.config)
         self.protocols.append(p)
         return p

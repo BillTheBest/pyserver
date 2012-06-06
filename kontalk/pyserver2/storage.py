@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-'''Message broker storage abstraction and implementatins.'''
+'''Message broker storage abstraction and implementations.'''
 '''
   Kontalk pyserver2
   Copyright (C) 2011 Kontalk Devteam <devteam@kontalk.org>

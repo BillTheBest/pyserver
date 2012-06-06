@@ -1,4 +1,4 @@
-[ ] standalone configuration file (server.conf)
+[x] standalone configuration file (server.conf)
 [x] push notifications on startup
 [x] time zone problems :)
 [x] resource conflicts
