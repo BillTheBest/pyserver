@@ -25,7 +25,7 @@ import pickle, shelve
 import kontalklib.logging as log
 
 from twisted.application import internet, service
-from twisted.internet.defer import Deferred
+from twisted.internet import task
 
 # local imports
 import storage
@@ -106,6 +106,18 @@ class MessageBroker(service.Service):
 
         if self.push_manager:
             self._push_init()
+
+        # old usercache entries purger
+        self._loop(10, self._purge_usercache)
+
+    def _loop(self, delay, call, now=False):
+        l = task.LoopingCall(call)
+        l.start(delay, now)
+        return l
+
+    def _purge_usercache(self):
+        #log.debug("purging usercache")
+        self.storage.purge_users()
 
     def _push_init(self):
         '''Sends push messages on startup for incoming messages.'''

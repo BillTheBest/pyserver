@@ -1,8 +1,4 @@
-[x] standalone configuration file (server.conf)
-[x] push notifications on startup
-[x] time zone problems :)
-[x] resource conflicts
-[x] touch user (storage) when they validate/register
-[x] broadcast/notification of user status update (subscription-based presence notification)
-[x] user status update/google registration id update
-[x] mark_user_online() seems not to work correctly...
+[ ] usercache expiration
+[ ] message expiration
+    some way to expire old or orphaned messages
+[ ] serverlink code

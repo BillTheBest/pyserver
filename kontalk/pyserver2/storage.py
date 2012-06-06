@@ -79,6 +79,10 @@ class MessageStorage:
         '''Retrieves user stat data.'''
         pass
 
+    def purge_users(self):
+        '''Purges old user entries.'''
+        pass
+
 
 class PersistentDictStorage(MessageStorage):
     '''PersistentDict-based message storage.
@@ -337,3 +341,7 @@ class MySQLStorage(MessageStorage):
         if dd:
             dd['timestamp'] = long(time.mktime(dd['timestamp'].timetuple()))
         return dd
+
+    def purge_users(self):
+        '''Purges old user entries.'''
+        return self.userdb.purge_old_entries()

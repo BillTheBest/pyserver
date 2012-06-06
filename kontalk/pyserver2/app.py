@@ -34,6 +34,7 @@ class Pyserver2App:
 
     def __init__ (self, argv):
         self.application = service.Application("Pyserver2")
+        # FIXME this won't work with twistd - need to write a twistd plugin
         self._cfgfile = 'server.conf'
         for i in range(len(argv)):
             if argv[i] == '-c':
