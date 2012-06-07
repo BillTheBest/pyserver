@@ -1,4 +1,4 @@
-[ ] usercache expiration
 [ ] message expiration
     some way to expire old or orphaned messages
-[ ] serverlink code
+[ ] serverlink
+[x] usercache expiration
