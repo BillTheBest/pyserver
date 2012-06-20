@@ -1,3 +1,4 @@
+[ ] still problems when posting a file more than once (first: error, next: success - file goes wrong)
 [ ] message expiration
     some way to expire old or orphaned messages
 [ ] serverlink
