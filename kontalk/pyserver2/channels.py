@@ -59,7 +59,7 @@ class C2SChannel:
         '''Client tried to authenticate.'''
         log.debug("[%s] authenticating token: %s" % (tx_id, auth_token))
         try:
-            userid = token.verify_user_token(auth_token, database.servers(self.broker.db), self.config['server']['fingerprint'])
+            userid = token.verify_user_token(auth_token, database.servers(self.broker.db), str(self.config['server']['fingerprint']))
         except:
             import traceback
             traceback.print_exc()
@@ -216,7 +216,7 @@ class C2SChannel:
             # here is your token
             log.debug("generating token for %s" % userid)
             str_token = token.user_token(userid,
-                self.config['server']['fingerprint'])
+                str(self.config['server']['fingerprint']))
             return c2s.ValidationResponse.STATUS_SUCCESS, str_token
 
         else:
