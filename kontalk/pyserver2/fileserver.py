@@ -212,9 +212,13 @@ class FileUpload(resource.Resource):
                 if length <= self.config['fileserver']['max_size']:
                     # store file to storage
                     # TODO convert to file-object management for lighter memory consumption
-                    (filename, fileid) = self.fileserver.storage.extra_storage(('', ), mime, request.content.read())
-                    a.status = c2s.FileUploadResponse.STATUS_SUCCESS
-                    a.file_id = fileid
+                    data = request.content.read()
+                    if len(data) == length:
+                        (filename, fileid) = self.fileserver.storage.extra_storage(('', ), mime, data)
+                        a.status = c2s.FileUploadResponse.STATUS_SUCCESS
+                        a.file_id = fileid
+                    else:
+                        a.status = c2s.FileUploadResponse.STATUS_ERROR
                 else:
                     a.status = c2s.FileUploadResponse.STATUS_BIG
             else:
