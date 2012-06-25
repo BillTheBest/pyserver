@@ -48,6 +48,8 @@ class Pyserver2App:
         self.config = json.load(fp)
         fp.close()
 
+        log.init(self.config)
+
         # broker service
         self.broker = MessageBroker(self.application, self.config)
         # fileserver service
