@@ -182,6 +182,9 @@ class PersistentDictStorage(MessageStorage):
 class MySQLStorage(MessageStorage):
     '''MySQL-based message storage.'''
 
+    '''User messages cache.'''
+    _cache = {}
+
     def __init__(self, path, db = None):
         log.debug("init MySQL storage")
         self._extra_path = path
@@ -206,6 +209,18 @@ class MySQLStorage(MessageStorage):
             self.userdb = None
             self.msgdb = None
             self.attdb = None
+
+    def _invalidate(self, uid, msgid = None):
+        try:
+            if msgid:
+                for i in range(len(self._cache[uid])):
+                    if self._cache[uid][i]['id'] == msgid:
+                        del self._cache[uid][i]
+                        break
+            else:
+                del self._cache[uid]
+        except:
+            pass
 
     def get_timestamp(self, uid):
         '''Retrieves the timestamp of a user/mailbox.'''
@@ -240,13 +255,18 @@ class MySQLStorage(MessageStorage):
         '''Loads a storage for a userid.'''
         msgdict = {}
 
-        #special case: null uid -- retrieve message count by userid
+        # special case: null uid -- retrieve message count by userid
         if not uid:
             msglist = self.msgdb.need_notification()
             for msg in msglist:
                 msgdict[msg['recipient']] = msg['num']
         else:
-            msglist = self.msgdb.incoming(uid, True)
+            try:
+                msglist = self._cache[uid]
+            except KeyError:
+                msglist = self.msgdb.incoming(uid, True)
+                self._cache[uid] = msglist
+
             for msg in msglist:
                 msgdict[msg['id']] = self._format_msg(msg)
 
@@ -270,7 +290,8 @@ class MySQLStorage(MessageStorage):
             100,
             msg['need_ack'],
             orig_id)
-
+        # too much caching can kill you :)
+        self._invalidate(uid)
 
     def deliver(self, userid, msg, force = False):
         '''Used to persist a message that was intended to a generic userid.'''
@@ -282,6 +303,8 @@ class MySQLStorage(MessageStorage):
     def delete(self, uid, msgid):
         '''Deletes a single message.'''
         self.msgdb.delete(msgid)
+        # too much caching can kill you :)
+        self._invalidate(uid, msgid)
 
     def extra_storage(self, uids, mime, content, name = None):
         '''Store a big file in the storage system.'''
