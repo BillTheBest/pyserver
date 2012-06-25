@@ -1,5 +1,10 @@
 [ ] still problems when posting a file more than once (first: error, next: success - file goes wrong)
-[ ] message expiration
-    some way to expire old or orphaned messages
-[ ] serverlink
+[ ] message expiration: some way to expire old or orphaned messages
+[ ] internally merge multiple receipts for the same sender/rcpt pair (on login or scheduled)
+[x] table indexes
 [x] usercache expiration
+
+-- scheduled --
+[ ] async database calls
+[ ] ping timeout while channel is too busy
+[ ] serverlink

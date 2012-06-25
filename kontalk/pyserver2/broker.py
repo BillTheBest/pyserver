@@ -161,7 +161,7 @@ class MessageBroker(service.Service):
                     q.put(outmsg)
 
             except KeyError:
-                log.debug("warning: no listener to deliver message!")
+                #log.debug("warning: no listener to deliver message!")
                 # store to temporary spool
                 self.storage.store(userid, msg)
                 # send push notifications to all matching users
@@ -190,9 +190,10 @@ class MessageBroker(service.Service):
 
             try:
                 # send to client consumer
+                #log.debug("sending message %s to consumer" % msg['messageid'])
                 self._consumers[uhash][resource].put(msg)
             except:
-                log.debug("warning: no listener to deliver message to resource %s!" % resource)
+                #log.debug("warning: no listener to deliver message to resource %s!" % resource)
                 # send push notification
                 try:
                     # do not push for receipts
@@ -220,7 +221,7 @@ class MessageBroker(service.Service):
 
         self._callbacks[userid] = { 'conflict' : worker.conflict }
         self._consumers[uhash][resource] = ResizableDispatchQueue(worker.incoming)
-        self._consumers[uhash][resource].start(5)
+        self._consumers[uhash][resource].start(50)
 
         # mark user as online in the push notifications manager
         if self.push_manager:
@@ -400,7 +401,9 @@ class MessageBroker(service.Service):
         # message receipts grouped by recipient
         rcpt_list = {}
 
-        # retrieve the messages that needs to be acknowledged
+        # retrieve messages that needs to be acknowledged
+        # FIXME this is totally inefficient - this call will select all user
+        # messages everytime an ack request is sent by the client!!!
         db = self.storage.load(sender)
 
         for msgid in msgid_list:
@@ -446,6 +449,5 @@ class MessageBroker(service.Service):
         for msgid, safe in res.iteritems():
             if safe:
                 self.storage.delete(sender, msgid)
-        # can't use sync - it's not valid for all storages - db.sync()
 
         return res

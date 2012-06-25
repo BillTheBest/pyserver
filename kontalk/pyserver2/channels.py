@@ -97,8 +97,7 @@ class C2SChannel:
 
     def post_message(self, tx_id, recipient = None, mime = None, flags = None, content = None):
         '''User posted a message.'''
-        log.debug("[%s] posting message for: %s (mime=%s, flags=%s)" % \
-            (tx_id, str(recipient), mime, str(flags)))
+        #log.debug("[%s] posting message for: %s (mime=%s, flags=%s)" % (tx_id, str(recipient), mime, str(flags)))
 
         # are we sending an attachment message?
         attachment = 'attachment' in flags
@@ -291,7 +290,7 @@ class C2SChannel:
     def incoming(self, data, unused = None):
         '''Internal queue worker.'''
         # TODO check for missing keys
-        log.debug("incoming message: %s" % data['messageid'])
+        #log.debug("incoming message: %s" % data['messageid'])
         # TODO avoid using c2s directly; instead create a method in C2SServerProtocol
         a = c2s.NewMessage()
         a.message_id = data['messageid']
@@ -318,13 +317,14 @@ class C2SChannel:
         self.protocol.transport.loseConnection()
 
     def idle(self):
-        # too much verbose -- log.debug("idle connection, sending ping")
+        # too much verbose -- log.debug("idle connection, sending ping to %s" % self.userid)
         pass
 
     def ping_timeout(self):
         '''Called on ping timeout.'''
         log.debug("ping timeout for %s" % self.userid)
         self.protocol.transport.loseConnection()
+
 
 class S2SChannel:
     '''Server channel implementation.'''
