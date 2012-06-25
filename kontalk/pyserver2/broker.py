@@ -161,7 +161,7 @@ class MessageBroker(service.Service):
                     q.put(outmsg)
 
             except KeyError:
-                #log.debug("warning: no listener to deliver message!")
+                log.debug("warning: no consumer to deliver message to %s" % userid)
                 # store to temporary spool
                 self.storage.store(userid, msg)
                 # send push notifications to all matching users
@@ -193,7 +193,7 @@ class MessageBroker(service.Service):
                 #log.debug("sending message %s to consumer" % msg['messageid'])
                 self._consumers[uhash][resource].put(msg)
             except:
-                #log.debug("warning: no listener to deliver message to resource %s!" % resource)
+                log.debug("warning: no consumer to deliver message to %s/%s!" % (uhash, resource))
                 # send push notification
                 try:
                     # do not push for receipts
