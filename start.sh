@@ -1,3 +1,3 @@
 #!/bin/sh
 
-PYTHONPATH=../kontalklib exec twistd -y start.py $*
+PYTHONPATH=../kontalklib:. exec twistd -y start.py $*
