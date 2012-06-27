@@ -217,13 +217,17 @@ class FileUpload(resource.Resource):
                     data = request.content.read()
                     if len(data) == length:
                         (filename, fileid) = self.fileserver.storage.extra_storage(('', ), mime, data)
+                        log.debug("file stored to disk (filename=%s, fileid=%s)" % (filename, fileid))
                         a.status = c2s.FileUploadResponse.STATUS_SUCCESS
                         a.file_id = fileid
                     else:
+                        log.debug("file length not matching content-length header (%d/%d)" % (len(data), length))
                         a.status = c2s.FileUploadResponse.STATUS_ERROR
                 else:
+                    log.debug("file too big (%d bytes)" % length)
                     a.status = c2s.FileUploadResponse.STATUS_BIG
             else:
+                log.debug("content-length header not found")
                 a.status = c2s.FileUploadResponse.STATUS_ERROR
 
         request.setHeader('content-type', 'application/x-google-protobuf')
