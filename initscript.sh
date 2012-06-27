@@ -77,7 +77,7 @@ do_stop()
 	start-stop-daemon --stop --quiet --oknodo --retry=0/30/KILL/5 --exec $DAEMON
 	[ "$?" = 2 ] && return 2
 	# Many daemons don't delete their pidfiles when they exit.
-	#rm -f $PIDFILE
+	rm -f $PIDFILE
 	return "$RETVAL"
 }
 
