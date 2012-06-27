@@ -77,8 +77,12 @@ class MessageBroker(service.Service):
         self.config = config
         self.storage = storage.__dict__[config['broker']['storage'][0]](*config['broker']['storage'][1:])
 
+    def print_version(self):
+        log.info("%s version %s" % (version.NAME, version.VERSION))
+
     def startService(self):
         service.Service.startService(self)
+        self.print_version()
         log.debug("broker init")
 
         # estabilish a connection to the database

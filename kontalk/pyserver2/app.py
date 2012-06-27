@@ -24,7 +24,6 @@ import json
 
 from twisted.application import internet, service
 
-from version import *
 from broker import MessageBroker
 from fileserver import Fileserver
 
@@ -41,8 +40,6 @@ class Pyserver2App:
                 self._cfgfile = argv[i + 1]
 
     def setup(self):
-        self.print_version()
-
         # load configuration
         fp = open(self._cfgfile, 'r')
         self.config = json.load(fp)
@@ -53,9 +50,7 @@ class Pyserver2App:
         # broker service
         self.broker = MessageBroker(self.application, self.config)
         # fileserver service
-        self.fileserver = Fileserver(self.application, self.config, self.broker)
+        if self.config['server']['fileserver.enabled']:
+            self.fileserver = Fileserver(self.application, self.config, self.broker)
 
         return self.application
-
-    def print_version(self):
-        log.info("%s version %s" % (NAME, VERSION))

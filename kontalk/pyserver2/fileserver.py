@@ -21,6 +21,7 @@
 
 import kontalklib.logging as log
 import os, time
+import json
 
 from zope.interface import implements
 
@@ -36,6 +37,7 @@ from twisted.python.log import err
 
 import kontalklib.c2s_pb2 as c2s
 from kontalklib import database, token, utils
+import version, storage
 
 
 class IKontalkToken(credentials.ICredentials):
@@ -258,17 +260,29 @@ class FileDownloadRealm(object):
 class Fileserver(resource.Resource, service.Service):
     '''Fileserver connection manager.'''
 
-    def __init__(self, application, config, broker):
+    def __init__(self, application, config, broker=None):
         resource.Resource.__init__(self)
         self.setServiceParent(application)
         self.config = config
         self.broker = broker
 
+    def print_version(self):
+        log.info("%s Fileserver version %s" % (version.NAME, version.VERSION))
+
     def startService(self):
         service.Service.startService(self)
-        log.debug("fileserver init")
-        self.storage = self.broker.storage
-        self.db = self.broker.db
+        if self.broker:
+            # daemon mode - print init message
+            log.debug("fileserver init")
+            self.storage = self.broker.storage
+            self.db = self.broker.db
+        else:
+            # standalone - print version
+            self.print_version()
+            # create storage and database connection on our own
+            self.storage = storage.__dict__[self.config['broker']['storage'][0]](*self.config['broker']['storage'][1:])
+            self.db = database.connect_config(self.config)
+            self.storage.set_datasource(self.db)
 
         # setup upload endpoint
         portal = Portal(FileUploadRealm(self), [AuthKontalkToken(self.db)])
@@ -289,3 +303,28 @@ class Fileserver(resource.Resource, service.Service):
         fs_service = internet.TCPServer(port=self.config['server']['fileserver.bind'][1],
             factory=factory, interface=self.config['server']['fileserver.bind'][0])
         fs_service.setServiceParent(self.parent)
+
+
+class FileserverApp:
+    '''Standalone Fileserver application starter.'''
+
+    def __init__ (self, argv):
+        self.application = service.Application("Pyserver2.Fileserver")
+        # FIXME this won't work with twistd - need to write a twistd plugin
+        self._cfgfile = 'server.conf'
+        for i in range(len(argv)):
+            if argv[i] == '-c':
+                self._cfgfile = argv[i + 1]
+
+    def setup(self):
+        # load configuration
+        fp = open(self._cfgfile, 'r')
+        self.config = json.load(fp)
+        fp.close()
+
+        log.init(self.config)
+
+        # fileserver service
+        self.fileserver = Fileserver(self.application, self.config)
+
+        return self.application
