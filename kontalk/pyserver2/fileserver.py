@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 '''The Fileserver Service.'''
 '''
-  Kontalk pyserver2
+  Kontalk Pyserver
   Copyright (C) 2011 Kontalk Devteam <devteam@kontalk.org>
 
  This program is free software: you can redistribute it and/or modify
@@ -309,7 +309,7 @@ class FileserverApp:
     '''Standalone Fileserver application starter.'''
 
     def __init__ (self, argv):
-        self.application = service.Application("Pyserver2.Fileserver")
+        self.application = service.Application("Pyserver.Fileserver")
         # FIXME this won't work with twistd - need to write a twistd plugin
         self._cfgfile = 'server.conf'
         for i in range(len(argv)):

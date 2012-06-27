@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-'''pyserver2 Fileserver entry point.'''
+'''pyserver Fileserver entry point.'''
 '''
-  Kontalk pyserver2
+  Kontalk Pyserver
   Copyright (C) 2011 Kontalk Devteam <devteam@kontalk.org>
 
  This program is free software: you can redistribute it and/or modify

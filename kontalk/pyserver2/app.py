@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-'''Pyserver2 application entry.'''
+'''Pyserver application entry.'''
 '''
-  Kontalk pyserver2
+  Kontalk Pyserver
   Copyright (C) 2011 Kontalk Devteam <devteam@kontalk.org>
 
  This program is free software: you can redistribute it and/or modify
@@ -28,11 +28,11 @@ from broker import MessageBroker
 from fileserver import Fileserver
 
 
-class Pyserver2App:
+class PyserverApp:
     '''Application starter.'''
 
     def __init__ (self, argv):
-        self.application = service.Application("Pyserver2")
+        self.application = service.Application("Pyserver")
         # FIXME this won't work with twistd - need to write a twistd plugin
         self._cfgfile = 'server.conf'
         for i in range(len(argv)):

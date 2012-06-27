@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 '''Message broker storage abstraction and implementations.'''
 '''
-  Kontalk pyserver2
+  Kontalk Pyserver
   Copyright (C) 2011 Kontalk Devteam <devteam@kontalk.org>
 
  This program is free software: you can redistribute it and/or modify

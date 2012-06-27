@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-'''pyserver2 entry point.'''
+'''pyserver entry point.'''
 '''
-  Kontalk pyserver2
+  Kontalk Pyserver
   Copyright (C) 2011 Kontalk Devteam <devteam@kontalk.org>
 
  This program is free software: you can redistribute it and/or modify
@@ -22,5 +22,5 @@ import sys, time
 
 from kontalk.pyserver2 import app
 
-app = app.Pyserver2App(sys.argv)
+app = app.PyserverApp(sys.argv)
 application = app.setup()

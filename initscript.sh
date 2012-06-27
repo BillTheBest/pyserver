@@ -18,7 +18,7 @@ PATH=/sbin:/usr/sbin:/bin:/usr/bin
 DESC="Kontalk server"
 NAME=kontalkd
 PIDFILE=/var/run/$NAME.pid
-DAEMON=/home/kontalk/pyserver2/start.sh
+DAEMON=/home/kontalk/pyserver/start.sh
 DAEMON_ARGS="-l /var/log/kontalk.log --pidfile $PIDFILE -u kontalk -g kontalk"
 SCRIPTNAME=/etc/init.d/$NAME
 

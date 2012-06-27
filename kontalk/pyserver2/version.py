@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 '''Version information.'''
 '''
-  Kontalk pyserver2
+  Kontalk Pyserver
   Copyright (C) 2011 Kontalk Devteam <devteam@kontalk.org>
 
  This program is free software: you can redistribute it and/or modify
@@ -18,9 +18,9 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-NAME = "Kontalk Pyserver2 Daemon"
-PACKAGE = "kontalk-pyserver2"
-VERSION = "0.1-beta1"
+NAME = "Kontalk Pyserver Daemon"
+PACKAGE = "kontalk-pyserver"
+VERSION = "2.0-rc1"
 AUTHORS = (
     {
         "name": "Daniele Ricci",
