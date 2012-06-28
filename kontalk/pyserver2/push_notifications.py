@@ -74,16 +74,15 @@ class PushServer:
 
 
 class GooglePush(PushServer):
-    '''Google C2DM implementation.'''
+    '''Google Cloud Messaging implementation.'''
 
-    # API entrypoint for C2DM requests
-    url = 'https://android.apis.google.com/c2dm/send'
+    # API entrypoint for GCM requests
+    url = 'https://android.googleapis.com/gcm/send'
     # usercache field for registration id
     field = 'google_registrationid'
 
     def __init__(self, config, userid, regid):
-        # TODO request token by using credentials
-        self.token = config['google_c2dm']['token']
+        self.token = config['google_gcm']['apikey']
         self.userid = userid
         self.regid = regid
 
@@ -94,7 +93,7 @@ class GooglePush(PushServer):
             'data.action' : 'org.kontalk.CHECK_MESSAGES'
         })
         headers = {
-            'Authorization' : 'GoogleLogin auth=' + self.token
+            'Authorization' : 'key=' + self.token
         }
         req = urllib2.Request(self.url, params, headers)
         fd = urllib2.urlopen(req)

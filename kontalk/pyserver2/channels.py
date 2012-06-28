@@ -85,11 +85,11 @@ class C2SChannel:
         }
 
         # TODO supports should be modular
-        # support for Google C2DM push notification service
+        # support for Google Cloud Messaging push notification service
         try:
-            if self.config['server']['supports.google_c2dm']:
-                email = self.config['google_c2dm']['email']
-                info['supports'].append('google_c2dm=' + email)
+            if self.config['server']['supports.google_gcm']:
+                email = self.config['google_gcm']['projectid']
+                info['supports'].append('google_gcm=' + email)
         except:
             pass
 
