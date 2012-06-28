@@ -54,7 +54,7 @@ class KontalkToken(object):
         self.config = config
 
     def checkToken(self, db):
-        log.debug("checking token %s", self.token)
+        log.debug("checking token %s" % self.token)
         try:
             return token.verify_user_token(self.token, database.servers(db), self.config['server']['fingerprint'])
         except:
@@ -99,7 +99,7 @@ class AuthKontalkTokenFactory(object):
 
     def decode(self, response, request):
         key, token = response.split('=', 1)
-        log.debug("got token from request: %s", token)
+        log.debug("got token from request: %s" % token)
         if key == 'auth':
             return KontalkToken(token, self.config)
 

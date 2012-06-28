@@ -290,7 +290,7 @@ class C2SChannel:
     def incoming(self, data, unused = None):
         '''Internal queue worker.'''
         # TODO check for missing keys
-        #log.debug("incoming message: %s" % data['messageid'])
+        log.debug("incoming message: %s" % data)
         # TODO avoid using c2s directly; instead create a method in C2SServerProtocol
         a = c2s.NewMessage()
         a.message_id = data['messageid']
