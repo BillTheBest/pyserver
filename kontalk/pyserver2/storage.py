@@ -228,6 +228,7 @@ class MySQLStorage(MessageStorage):
         return long(time.mktime(dd['timestamp'].timetuple())) if dd else None
 
     def _format_msg(self, msg):
+        '''Converts a database row from the messages table to a broker message.'''
         dm = { 'headers' : {} }
 
         # message metadata
@@ -246,6 +247,8 @@ class MySQLStorage(MessageStorage):
         dm['headers']['flags'] = []
         if msg['encrypted'] != 0:
             dm['headers']['flags'].append('encrypted')
+        if msg['filename']:
+            dm['headers']['filename'] = msg['filename']
 
         # payload
         dm['payload'] = msg['content']
