@@ -54,7 +54,7 @@ class KontalkToken(object):
         self.config = config
 
     def checkToken(self, db):
-        log.debug("checking token %s" % self.token)
+        #log.debug("checking token %s" % self.token)
         try:
             return token.verify_user_token(self.token, database.servers(db), self.config['server']['fingerprint'])
         except:
@@ -72,7 +72,7 @@ class AuthKontalkToken(object):
         self.db = db
 
     def _cbTokenValid(self, userid):
-        log.debug("token userid=%s" % userid)
+        #log.debug("token userid=%s" % userid)
         if userid:
             return userid
         else:
@@ -94,12 +94,12 @@ class AuthKontalkTokenFactory(object):
         self.config = config
 
     def getChallenge(self, request):
-        log.debug(('getChallenge', request))
+        #log.debug(('getChallenge', request))
         return {}
 
     def decode(self, response, request):
         key, token = response.split('=', 1)
-        log.debug("got token from request: %s" % token)
+        #log.debug("got token from request: %s" % token)
         if key == 'auth':
             return KontalkToken(token, self.config)
 
@@ -151,7 +151,7 @@ class FileDownload(resource.Resource):
         return self._quick_response(request, 404, 'not found')
 
     def render_GET(self, request):
-        log.debug("request from %s: %s" % (self.userid, request.args))
+        #log.debug("request from %s: %s" % (self.userid, request.args))
         if 'f' in request.args:
             fn = request.args['f'][0]
             info = self.fileserver.storage.get_extra(fn, self.userid)
@@ -199,7 +199,7 @@ class FileUpload(resource.Resource):
         return self._quick_response(request, 400, 'bad request')
 
     def render_POST(self, request):
-        log.debug("request from %s: %s" % (self.userid, request.requestHeaders))
+        #log.debug("request from %s: %s" % (self.userid, request.requestHeaders))
         a = c2s.FileUploadResponse()
 
         # check mime type
@@ -245,7 +245,7 @@ class FileUploadRealm(object):
         self.fileserver = fileserver
 
     def requestAvatar(self, avatarId, mind, *interfaces):
-        log.debug("[upload] requestAvatar: %s" % avatarId)
+        #log.debug("[upload] requestAvatar: %s" % avatarId)
         uploader = FileUpload(self.fileserver, avatarId)
         return interfaces[0], uploader, uploader.logout
 
@@ -256,7 +256,7 @@ class FileDownloadRealm(object):
         self.fileserver = fileserver
 
     def requestAvatar(self, avatarId, mind, *interfaces):
-        log.debug("[download] requestAvatar: %s" % avatarId)
+        #log.debug("[download] requestAvatar: %s" % avatarId)
         downloader = FileDownload(self.fileserver, avatarId)
         return interfaces[0], downloader, downloader.logout
 

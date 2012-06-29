@@ -57,7 +57,7 @@ class C2SChannel:
 
     def authenticate(self, tx_id, auth_token):
         '''Client tried to authenticate.'''
-        log.debug("[%s] authenticating token: %s" % (tx_id, auth_token))
+        #log.debug("[%s] authenticating token: %s" % (tx_id, auth_token))
         try:
             userid = token.verify_user_token(auth_token, database.servers(self.broker.db), str(self.config['server']['fingerprint']))
         except:
@@ -290,7 +290,7 @@ class C2SChannel:
     def incoming(self, data, unused = None):
         '''Internal queue worker.'''
         # TODO check for missing keys
-        log.debug("incoming message: %s" % data)
+        #log.debug("incoming message: %s" % data)
         # TODO avoid using c2s directly; instead create a method in C2SServerProtocol
         a = c2s.NewMessage()
         a.message_id = data['messageid']

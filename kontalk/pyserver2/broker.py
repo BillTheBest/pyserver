@@ -165,7 +165,7 @@ class MessageBroker(service.Service):
                     q.put(outmsg)
 
             except KeyError:
-                log.debug("warning: no consumer to deliver message to %s" % userid)
+                #log.debug("warning: no consumer to deliver message to %s" % userid)
                 # store to temporary spool
                 self.storage.store(userid, msg)
                 # send push notifications to all matching users
@@ -197,7 +197,7 @@ class MessageBroker(service.Service):
                 #log.debug("sending message %s to consumer" % msg['messageid'])
                 self._consumers[uhash][resource].put(msg)
             except:
-                log.debug("warning: no consumer to deliver message to %s/%s!" % (uhash, resource))
+                #log.debug("warning: no consumer to deliver message to %s/%s!" % (uhash, resource))
                 # send push notification
                 try:
                     # do not push for receipts
@@ -275,7 +275,7 @@ class MessageBroker(service.Service):
 
     def broadcast_presence(self, userid, event, status = None):
         def _broadcast(self, by_userid, to_userid, event, status):
-            log.debug("broadcasting event %d by user %s to user %s" % (event, by_userid, to_userid))
+            #log.debug("broadcasting event %d by user %s to user %s" % (event, by_userid, to_userid))
             m = c2s.UserPresence()
             m.event = event
             if status != None:
@@ -307,8 +307,8 @@ class MessageBroker(service.Service):
         return generic, specific
 
     def subscribe_user_presence(self, userid, uid, events, internal = False):
-        if not internal:
-            log.debug("subscribing %s to presence notifications by %s for events %d" % (userid, uid, events))
+        #if not internal:
+            #log.debug("subscribing %s to presence notifications by %s for events %d" % (userid, uid, events))
         # invalid username
         if len(uid) != utils.USERID_LENGTH and len(uid) != utils.USERID_LENGTH_RESOURCE:
             return c2s.UserPresenceSubscribeResponse.STATUS_INVALID_USERNAME
@@ -348,7 +348,7 @@ class MessageBroker(service.Service):
 
     def unsubscribe_user_presence(self, userid):
         '''Unsubscribes user to any kind of event by any user.'''
-        log.debug("ubsubscribing %s from all presence notifications" % userid)
+        #log.debug("ubsubscribing %s from all presence notifications" % userid)
         if userid in self._presence_lists:
             for sub in self._presence_lists[userid]:
                 self.subscribe_user_presence(userid, sub, 0, True)
