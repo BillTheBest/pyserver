@@ -63,7 +63,7 @@ class C2SChannel:
         except:
             import traceback
             traceback.print_exc()
-            log.debug("[%s] token verification failed!" % (tx_id))
+            log.debug("[%s] token verification failed: %s" % (tx_id, auth_token))
             userid = None
 
         if userid:
