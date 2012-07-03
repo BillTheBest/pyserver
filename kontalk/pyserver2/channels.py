@@ -213,7 +213,7 @@ class C2SChannel:
             self.broker.storage.touch_user(userid)
 
             # here is your token
-            log.debug("generating token for %s" % userid)
+            log.debug("[%s] generating token for %s" % (tx_id, userid))
             str_token = token.user_token(userid,
                 str(self.config['server']['fingerprint']))
             return c2s.ValidationResponse.STATUS_SUCCESS, str_token
@@ -222,7 +222,7 @@ class C2SChannel:
             return c2s.ValidationResponse.STATUS_FAILED, None
 
     def register_user(self, tx_id, username):
-        log.debug("registering username %s via %s" % (username, self.config['registration']['type']))
+        log.debug("[%s] registering username %s via %s" % (tx_id, username, self.config['registration']['type']))
         if self.config['registration']['type'] == 'sms':
             res = self._register_sms(username)
             d = { 'status' : res }
