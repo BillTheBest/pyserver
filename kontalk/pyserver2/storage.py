@@ -381,6 +381,6 @@ class MySQLStorage(MessageStorage):
     def purge_messages(self):
         '''Purges expired/unknown messages.'''
         # decrease TTL for messages without a usercache entry
-        return self.msgdb.ttl_expired()
+        self.msgdb.ttl_expired()
         # delete expired messages
-        return self.msgdb.purge_expired(1)
+        self.msgdb.purge_expired(1)
