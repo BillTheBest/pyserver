@@ -112,7 +112,9 @@ class MessageBroker(service.Service):
             self._push_init()
 
         # old usercache entries purger
-        self._loop(10, self._purge_usercache)
+        self._loop(self.config['broker']['usercache_purger.delay'], self._purge_usercache)
+        # expired/unknown messages purger
+        self._loop(self.config['broker']['message_purger.delay'], self._purge_messages, True)
 
     def _loop(self, delay, call, now=False):
         l = task.LoopingCall(call)
@@ -122,6 +124,11 @@ class MessageBroker(service.Service):
     def _purge_usercache(self):
         #log.debug("purging usercache")
         self.storage.purge_users()
+
+    def _purge_messages(self):
+        #log.debug("purging messages")
+        self.storage.purge_messages()
+        # TODO send error receipts for expired messages
 
     def _push_init(self):
         '''Sends push messages on startup for incoming messages.'''
@@ -379,6 +386,12 @@ class MessageBroker(service.Service):
             log.warn("invalid userid format: %s" % userid)
             # TODO should we throw an exception here?
             return None
+
+        if self.config['broker']['reject_unknown_recipients']:
+            # check if user exists
+            if not self.storage.get_user_stat(userid) and not self.user_online(userid):
+                log.warn("user %s not found" % userid)
+                return c2s.MessagePostResponse.MessageSent.STATUS_USER_NOTFOUND
 
         # prepare message dict
         msg_id = self.message_id()

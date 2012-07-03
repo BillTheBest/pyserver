@@ -83,6 +83,10 @@ class MessageStorage:
         '''Purges old user entries.'''
         pass
 
+    def purge_messages(self):
+        '''Purges expired/unknown messages.'''
+        pass
+
 
 class PersistentDictStorage(MessageStorage):
     '''PersistentDict-based message storage.
@@ -290,6 +294,7 @@ class MySQLStorage(MessageStorage):
             msg['payload'],
             encrypted,
             filename,
+            # FIXME TTL self-managed!?!?!?
             100,
             msg['need_ack'],
             orig_id)
@@ -363,6 +368,7 @@ class MySQLStorage(MessageStorage):
 
     def get_user_stat(self, uid):
         '''Retrieves user stat data.'''
+        # TODO cached access
         dd = self.userdb.get(uid, False)
         if dd:
             dd['timestamp'] = long(time.mktime(dd['timestamp'].timetuple()))
@@ -371,3 +377,10 @@ class MySQLStorage(MessageStorage):
     def purge_users(self):
         '''Purges old user entries.'''
         return self.userdb.purge_old_entries()
+
+    def purge_messages(self):
+        '''Purges expired/unknown messages.'''
+        # decrease TTL for messages without a usercache entry
+        return self.msgdb.ttl_expired()
+        # delete expired messages
+        return self.msgdb.purge_expired(1)

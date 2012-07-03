@@ -1,8 +1,10 @@
-[ ] still problems when posting a file more than once (first: error, next: success - file goes wrong)
-[ ] reject messages to unknown users? (usercache must be always valid)
+[ ] send error receipts for expired messages
 [ ] initscript won't work because of GNUPG_HOME set to root's home (or worse: filesystem root)
-[ ] message expiration: expire old or orphaned messages
 [ ] internally merge multiple receipts for the same sender/rcpt pair (on login or scheduled)
+[x] message expiration: expire old or orphaned messages
+[x] clean messages table (delete messages for non-existant users)
+[x] reject messages to unknown users? (usercache must be always valid)
+[x] still problems when posting a file more than once (first: error, next: success - file goes wrong)
 [x] table indexes
 [x] usercache expiration
 
