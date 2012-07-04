@@ -234,6 +234,9 @@ class MySQLStorage(MessageStorage):
     def stop(self, uid):
         '''Invalidates user message cache.'''
         self._invalidate(uid)
+        # invalidate generic too if uid is specific
+        if len(uid) == utils.USERID_LENGTH_RESOURCE:
+            self._invalidate(uid[:utils.USERID_LENGTH])
 
     def _format_msg(self, msg):
         '''Converts a database row from the messages table to a broker message.'''
