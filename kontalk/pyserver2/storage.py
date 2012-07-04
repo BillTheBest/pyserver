@@ -231,6 +231,10 @@ class MySQLStorage(MessageStorage):
         dd = self.userdb.get(uid, False)
         return long(time.mktime(dd['timestamp'].timetuple())) if dd else None
 
+    def stop(self, uid):
+        '''Invalidates user message cache.'''
+        self._invalidate(uid)
+
     def _format_msg(self, msg):
         '''Converts a database row from the messages table to a broker message.'''
         dm = { 'headers' : {} }
