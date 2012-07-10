@@ -1,7 +1,7 @@
-[ ] timestamp on attachments (so we can purge old ones)
 [ ] send error receipts for expired messages
 [ ] initscript won't work because of GNUPG_HOME set to root's home (or worse: filesystem root)
 [ ] internally merge multiple receipts for the same sender/rcpt pair (on login or scheduled)
+[x] timestamp on attachments (so we can purge old ones)
 [x] message expiration: expire old or orphaned messages
 [x] clean messages table (delete messages for non-existant users)
 [x] reject messages to unknown users? (usercache must be always valid)

@@ -87,6 +87,10 @@ class MessageStorage:
         '''Purges expired/unknown messages.'''
         pass
 
+    def purge_extra(self):
+        '''Purges expired/orphan files on extra storage.'''
+        pass
+
 
 class PersistentDictStorage(MessageStorage):
     '''PersistentDict-based message storage.
@@ -391,3 +395,7 @@ class MySQLStorage(MessageStorage):
         self.msgdb.ttl_expired()
         # delete expired messages
         self.msgdb.purge_expired(1)
+
+    def purge_extra(self):
+        '''Purges expired/orphan files on extra storage.'''
+        return self.attdb.purge_expired()

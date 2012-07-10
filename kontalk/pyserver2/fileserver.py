@@ -27,7 +27,7 @@ from zope.interface import implements
 
 from twisted.application import internet, service
 from twisted.python import failure
-from twisted.internet import defer
+from twisted.internet import defer, task
 from twisted.web import server, resource, iweb
 from twisted.cred import credentials, checkers, error
 from twisted.cred.portal import IRealm, Portal
@@ -307,6 +307,17 @@ class Fileserver(resource.Resource, service.Service):
         fs_service = internet.TCPServer(port=self.config['server']['fileserver.bind'][1],
             factory=factory, interface=self.config['server']['fileserver.bind'][0])
         fs_service.setServiceParent(self.parent)
+
+        # old attachments entries purger
+        self._loop(self.config['fileserver']['attachments_purger.delay'], self._purge_attachments, True)
+
+    def _loop(self, delay, call, now=False):
+        l = task.LoopingCall(call)
+        l.start(delay, now)
+        return l
+
+    def _purge_attachments(self):
+        self.storage.purge_extra()
 
 
 class FileserverApp:
