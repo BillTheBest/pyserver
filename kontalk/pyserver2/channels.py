@@ -222,7 +222,8 @@ class C2SChannel:
             return c2s.ValidationResponse.STATUS_FAILED, None
 
     def register_user(self, tx_id, username):
-        log.debug("[%s] registering username %s via %s" % (tx_id, username, self.config['registration']['type']))
+        # hiding username for privacy reasons
+        log.debug("[%s] registering user via %s" % (tx_id, self.config['registration']['type']))
         if self.config['registration']['type'] == 'sms':
             res = self._register_sms(username)
             d = { 'status' : res }
