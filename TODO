@@ -17,5 +17,7 @@
    [ ] user caching/notification
    [ ] remote message broker
    [ ] trust system by signing public key of server
+   [ ] message signing
+   [ ] serverinfo: download keyring (maybe with a different command?)
 [ ] statistics subsystem
 [ ] admin web/console interface
