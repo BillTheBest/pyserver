@@ -281,7 +281,8 @@ class C2SChannel:
                 sms = NexmoMessage(msg)
                 # FIXME send just the code for now
                 sms.set_text_info(code)
-                sms.send_request()
+                js = sms.send_request()
+                log.debug("sms sent [response=%s]" % js)
 
             return c2s.RegistrationResponse.STATUS_CONTINUE
         else:
