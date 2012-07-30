@@ -1,3 +1,4 @@
+[ ] validations.code should be UNIQUE - handle this also in server code
 [ ] send error receipts for expired messages
 [ ] initscript won't work because of GNUPG_HOME set to root's home (or worse: filesystem root)
 [ ] internally merge multiple receipts for the same sender/rcpt pair (on login or scheduled)
