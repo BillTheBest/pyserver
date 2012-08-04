@@ -288,6 +288,16 @@ class C2SChannel:
         else:
             return c2s.RegistrationResponse.STATUS_ERROR
 
+    def revalidate(self):
+        valdb = database.validations(self.broker.db)
+        userid = self.userid[:utils.USERID_LENGTH] + utils.rand_str(8, utils.CHARSBOX_AZN_UPPERCASE)
+        log.debug("revalidating user %s as %s" % (self.userid, userid))
+        ret = valdb.update(userid)
+        if ret[0] > 0:
+            return ret[1]
+        else:
+            return False
+
 
     def incoming(self, data, unused = None):
         '''Internal queue worker.'''

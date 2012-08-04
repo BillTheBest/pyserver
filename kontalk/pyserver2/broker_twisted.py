@@ -238,6 +238,16 @@ class C2SServerProtocol(InternalServerProtocol):
                     pass
                 self.pinger = None
 
+        elif name == 'ValidationCodeRequest':
+            if self.service.is_logged():
+                code = self.service.revalidate()
+                r = c2s.ValidationCodeResponse()
+                if type(code) == str:
+                    r.status = c2s.ValidationCodeResponse.STATUS_SUCCESS
+                    r.code = code
+                else:
+                    r.status = c2s.ValidationCodeResponse.STATUS_ERROR
+
         if r:
             self.sendBox(r, tx_id)
 
