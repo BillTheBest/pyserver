@@ -91,6 +91,9 @@ class MessageStorage:
         '''Purges expired/orphan files on extra storage.'''
         pass
 
+    def purge_validations(self):
+        '''Purges old validation entries.'''
+        pass
 
 class PersistentDictStorage(MessageStorage):
     '''PersistentDict-based message storage.
@@ -213,10 +216,12 @@ class MySQLStorage(MessageStorage):
             self.userdb = database.usercache(self._db)
             self.msgdb = database.messages(self._db)
             self.attdb = database.attachments(self._db)
+            self.valdb = database.validations(self._db)
         else:
             self.userdb = None
             self.msgdb = None
             self.attdb = None
+            self.valdb = None
 
     def _invalidate(self, uid, msgid = None):
         try:
@@ -399,3 +404,7 @@ class MySQLStorage(MessageStorage):
     def purge_extra(self):
         '''Purges expired/orphan files on extra storage.'''
         return self.attdb.purge_expired()
+
+    def purge_validations(self):
+        '''Purges old validation entries.'''
+        return self.valdb.purge_expired()

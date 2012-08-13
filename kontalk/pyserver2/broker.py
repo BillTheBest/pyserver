@@ -115,6 +115,8 @@ class MessageBroker(service.Service):
         self._loop(self.config['broker']['usercache_purger.delay'], self._purge_usercache)
         # expired/unknown messages purger
         self._loop(self.config['broker']['message_purger.delay'], self._purge_messages, True)
+        # old validations entries purger
+        self._loop(self.config['broker']['validations.expire'], self._purge_validations, True)
 
     def _loop(self, delay, call, now=False):
         l = task.LoopingCall(call)
@@ -129,6 +131,10 @@ class MessageBroker(service.Service):
         #log.debug("purging messages")
         self.storage.purge_messages()
         # TODO send error receipts for expired messages
+
+    def _purge_validations(self):
+        log.debug("purging validations")
+        self.storage.purge_validations()
 
     def _push_init(self):
         '''Sends push messages on startup for incoming messages.'''

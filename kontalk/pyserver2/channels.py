@@ -256,6 +256,7 @@ class C2SChannel:
             phone = '+' + phone[2:]
 
         # insert validation record
+        # TODO do not use directly - let the storage module do it
         valdb = database.validations(self.broker.db)
         userid = utils.sha1(phone) + utils.rand_str(8, utils.CHARSBOX_AZN_UPPERCASE)
         ret = valdb.update(userid)
