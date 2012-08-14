@@ -133,7 +133,7 @@ class MessageBroker(service.Service):
         # TODO send error receipts for expired messages
 
     def _purge_validations(self):
-        log.debug("purging validations")
+        #log.debug("purging validations")
         self.storage.purge_validations()
 
     def _push_init(self):
