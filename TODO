@@ -1,3 +1,4 @@
+[ ] channels.py/incoming/a.length: what if file is not found?
 [ ] validations.code should be UNIQUE - handle this also in server code
 [ ] send error receipts for expired messages
 [ ] initscript won't work because of GNUPG_HOME set to root's home (or worse: filesystem root)
