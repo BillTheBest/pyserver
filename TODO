@@ -13,11 +13,14 @@
 [x] usercache expiration
 
 -- scheduled --
+[ ] multithread: c2s/s2s
 [ ] virtual groups (how to keep track of group members?)
 [ ] async database calls
 [ ] ping timeout while channel is too busy
 [ ] serverlink
-   [ ] user caching/notification (IRC-like?)
+   [ ] user caching/notification
+       [ ] database: locally connected clients
+       [ ] memory: remote looked-up client
    [ ] remote message broker
    [ ] trust system by signing public key of server
    [ ] message signing
