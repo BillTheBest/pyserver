@@ -102,10 +102,17 @@ class MessageBroker(service.Service):
             factory=factory, interface=self.config['server']['c2s.bind'][0])
         c2s_service.setServiceParent(self.parent)
 
-        # create listening service for servers
-        factory = InternalServerFactory(S2SServerProtocol, S2SChannel, self, self.config)
+        # create listening service for servers (messages only)
+        factory = InternalServerFactory(S2SMessageServerProtocol, S2SMessageChannel, self, self.config)
         s2s_service = internet.TCPServer(port=self.config['server']['s2s.bind'][1],
             factory=factory, interface=self.config['server']['s2s.bind'][0])
+        s2s_service.setServiceParent(self.parent)
+
+        # create listening service for servers (notifications and requests)
+        protocol = S2SRequestServerProtocol(self.config)
+        self.s2s_req = S2SRequestChannel(protocol, self)
+        s2s_service = internet.UDPServer(port=self.config['server']['s2s.bind'][1],
+            protocol=protocol, interface=self.config['server']['s2s.bind'][0])
         s2s_service.setServiceParent(self.parent)
 
         if self.push_manager:

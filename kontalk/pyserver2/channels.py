@@ -339,8 +339,8 @@ class C2SChannel:
         self.protocol.transport.loseConnection()
 
 
-class S2SChannel:
-    '''Server channel implementation.'''
+class S2SMessageChannel:
+    '''Server channel for message sending implementation.'''
     # TODO
     # TODO
     # TODO
@@ -377,3 +377,10 @@ class S2SChannel:
     def _incoming(self, data):
         # TODO
         log.debug("incoming message:", data)
+
+
+class S2SRequestChannel:
+    def __init__(self, protocol, broker):
+        self.protocol = protocol
+        self.broker = broker
+        self.protocol.service = self

@@ -21,7 +21,7 @@
 
 from twisted.internet.protocol import ServerFactory, connectionDone
 from twisted.internet.task import LoopingCall
-from twisted.internet import reactor
+from twisted.internet import reactor, protocol
 
 import time
 from kontalklib import txprotobuf
@@ -46,13 +46,23 @@ class InternalServerProtocol(txprotobuf.Protocol):
         self.service.disconnected()
 
 
-class S2SServerProtocol(InternalServerProtocol):
+class S2SMessageServerProtocol(InternalServerProtocol):
 
     def __init__(self, config):
         txprotobuf.Protocol.__init__(self, s2s)
         self.MAX_LENGTH = config['server']['s2s.pack_size_max']
 
-    def boxReceived(self, data, tx_id = None):
+    def boxReceived(self, (host, port), data, tx_id = None):
+        # TODO
+        pass
+
+
+class S2SRequestServerProtocol(txprotobuf.DatagramProtocol):
+
+    def __init__(self, config):
+        txprotobuf.DatagramProtocol.__init__(self, s2s)
+
+    def boxReceived(self, addr, data, tx_id = None):
         # TODO
         pass
 

@@ -18,9 +18,9 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import sys, time
-
+import sys
 from kontalk.pyserver2 import app
 
-app = app.PyserverApp(sys.argv)
-application = app.setup()
+
+appl = app.PyserverApp(sys.argv)
+application = appl.setup()

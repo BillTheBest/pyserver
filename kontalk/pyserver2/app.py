@@ -33,11 +33,9 @@ class PyserverApp:
 
     def __init__ (self, argv):
         self.application = service.Application("Pyserver")
-        # FIXME this won't work with twistd - need to write a twistd plugin
         self._cfgfile = 'server.conf'
-        for i in range(len(argv)):
-            if argv[i] == '-c':
-                self._cfgfile = argv[i + 1]
+        if 'config' in argv:
+            self._cfgfile = argv['config']
 
     def setup(self):
         # load configuration
