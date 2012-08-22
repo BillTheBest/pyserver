@@ -90,6 +90,14 @@ class MessageBroker(service.Service):
         # datasource it will not be used if not neededs
         self.storage.set_datasource(self.db)
 
+        # retrieve serverlist
+        # TODO move to storage api
+        self.servers = database.servers(self.db)
+        # FIXME silly methods, just throw them away!
+        self.serverlist = self.servers.get_list()
+        self.servermap = self.servers.get_map()
+        self.keyring = self.servers.get_keyring()
+
         # create push notifications manager
         if self.config['server']['push_notifications']:
             log.debug("enabling push notifications support")
@@ -110,7 +118,7 @@ class MessageBroker(service.Service):
 
         # create listening service for servers (notifications and requests)
         protocol = S2SRequestServerProtocol(self.config)
-        self.s2s_req = S2SRequestChannel(protocol, self)
+        self.network = S2SRequestChannel(protocol, self)
         s2s_service = internet.UDPServer(port=self.config['server']['s2s.bind'][1],
             protocol=protocol, interface=self.config['server']['s2s.bind'][0])
         s2s_service.setServiceParent(self.parent)
@@ -311,6 +319,14 @@ class MessageBroker(service.Service):
             for sub, mask in subs_specific.iteritems():
                 if mask & USER_EVENT_MASKS[event]:
                     _broadcast(self, userid, sub, event, status)
+
+        # broadcast to servers
+        box = s2s.UserPresence()
+        box.event = event
+        box.user_id = userid
+        if status != None:
+            box.status_message = status
+        self.network.broadcast(box)
 
     def get_presence_subscribers(self, userid):
         '''Returns a tuple containing presence subscribers respectively for the generic user and the specific user.'''

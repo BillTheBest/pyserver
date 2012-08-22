@@ -59,7 +59,7 @@ class C2SChannel:
         '''Client tried to authenticate.'''
         #log.debug("[%s] authenticating token: %s" % (tx_id, auth_token))
         try:
-            userid = token.verify_user_token(auth_token, database.servers(self.broker.db), str(self.config['server']['fingerprint']))
+            userid = token.verify_user_token(auth_token, self.broker.keyring, str(self.config['server']['fingerprint']))
         except:
             import traceback
             traceback.print_exc()
@@ -384,3 +384,9 @@ class S2SRequestChannel:
         self.protocol = protocol
         self.broker = broker
         self.protocol.service = self
+
+    def broadcast(self, box, tx_id = None):
+        # TODO handle shutdown: self.protocol.trasport is null!!
+        for s in self.broker.serverlist:
+            addr = s['serverlink'].split(':')
+            self.protocol.sendBox((addr[0], int(addr[1])), box, tx_id)

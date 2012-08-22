@@ -58,13 +58,21 @@ class S2SMessageServerProtocol(InternalServerProtocol):
 
 
 class S2SRequestServerProtocol(txprotobuf.DatagramProtocol):
+    '''TODO this class should implement GPG signing/verification transparently.'''
 
     def __init__(self, config):
         txprotobuf.DatagramProtocol.__init__(self, s2s)
 
     def boxReceived(self, addr, data, tx_id = None):
-        # TODO
-        pass
+        # optional reply
+        r = None
+        name = data.__class__.__name__
+        print "box received", data
+
+        # TODO if name == ...
+
+        if r:
+            self.sendBox(addr, r, tx_id)
 
 
 class C2SServerProtocol(InternalServerProtocol):
