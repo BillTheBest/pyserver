@@ -384,9 +384,15 @@ class S2SRequestChannel:
         self.protocol = protocol
         self.broker = broker
         self.protocol.service = self
+        self.protocol.keyring = broker.keyring
+        self.protocol.fingerprint = str(self.broker.config['server']['fingerprint'])
 
     def broadcast(self, box, tx_id = None):
         # TODO handle shutdown: self.protocol.trasport is null!!
         for s in self.broker.serverlist:
             addr = s['serverlink'].split(':')
             self.protocol.sendBox((addr[0], int(addr[1])), box, tx_id)
+
+    def user_presence(self, userid, event, status = None):
+        # TODO
+        log.debug("user %s event %d (status=%s)" % (userid, event, status))

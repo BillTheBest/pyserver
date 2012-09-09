@@ -63,13 +63,14 @@ class S2SRequestServerProtocol(txprotobuf.DatagramProtocol):
     def __init__(self, config):
         txprotobuf.DatagramProtocol.__init__(self, s2s)
 
-    def boxReceived(self, addr, data, tx_id = None):
+    def boxReceived(self, addr, data, fingerprint, tx_id = None):
         # optional reply
         r = None
         name = data.__class__.__name__
-        print "box received", data
+        print "box received from %s" % (fingerprint, ), data
 
-        # TODO if name == ...
+        if name == 'UserPresence':
+            self.service.user_presence(str(data.user_id), data.event, data.status_message)
 
         if r:
             self.sendBox(addr, r, tx_id)
