@@ -25,7 +25,7 @@ import pickle, shelve
 import kontalklib.logging as log
 
 from twisted.application import internet, service
-from twisted.internet import task
+from twisted.internet import task, reactor
 
 # local imports
 import storage
@@ -33,6 +33,9 @@ from channels import *
 from broker_twisted import *
 import version, storage
 from txrdq import ResizableDispatchQueue
+
+from entangled.node import SignedNode
+from entangled.kademlia.datastore import SQLiteDataStore
 
 from kontalklib import database, utils
 
@@ -76,6 +79,7 @@ class MessageBroker(service.Service):
         self.setServiceParent(application)
         self.config = config
         self.storage = storage.__dict__[config['broker']['storage'][0]](*config['broker']['storage'][1:])
+        self.fingerprint = str(config['server']['fingerprint'])
 
     def print_version(self):
         log.info("%s version %s" % (version.NAME, version.VERSION))
@@ -122,6 +126,48 @@ class MessageBroker(service.Service):
         s2s_service = internet.UDPServer(port=self.config['server']['s2s.bind'][1],
             protocol=protocol, interface=self.config['server']['s2s.bind'][0])
         s2s_service.setServiceParent(self.parent)
+
+        # create Kadmelia node (GPG signed DHT)
+        # TODO read bind address from configuration
+        datastore = SQLiteDataStore('dht_' + self.fingerprint + '.db')
+        self.dht = SignedNode(self.fingerprint, self.keyring, self.config['server']['dht.bind'][1], datastore)
+
+        # join DHT network
+        addrs = [(str(x['host']), int(x['dht_port'])) for x in self.serverlist]
+        log.debug("joining DHT: %s" % addrs)
+        self.dht.joinNetwork(addrs)
+
+        # TEST DHT test
+        def testDHT():
+            #self.dht.printContacts()
+
+            def getValueCallback(result):
+                if type(result) == dict:
+                    print 'Value successfully retrieved: %s' % result
+                else:
+                    print 'Value not found'
+
+            def genericErrorCallback(failure):
+                print 'An error has occurred:', failure.getErrorMessage()
+
+            if self.fingerprint == '37D0E678CDD19FB9B182B3804C9539B401F8229C':
+                def storeValueCallback(*args, **kwargs):
+                    print 'Value stored successfully'
+                    #d = self.dht.iterativeFindValue("ciao")
+                    #d.addCallback(getValueCallback)
+                    #d.addErrback(genericErrorCallback)
+
+                deferredResult = self.dht.iterativeStore("ciao", "zio")
+                deferredResult.addCallback(storeValueCallback)
+                deferredResult.addErrback(genericErrorCallback)
+            else:
+                d = self.dht.iterativeFindValue("ciao")
+                d.addCallback(getValueCallback)
+                d.addErrback(genericErrorCallback)
+
+        #reactor.callLater(3, testDHT)
+        self._loop(3, testDHT, False)
+        # TEST DHT test END
 
         if self.push_manager:
             self._push_init()
