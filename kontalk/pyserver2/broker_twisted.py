@@ -57,25 +57,6 @@ class S2SMessageServerProtocol(InternalServerProtocol):
         pass
 
 
-class S2SRequestServerProtocol(txprotobuf.DatagramProtocol):
-    '''TODO this class should implement GPG signing/verification transparently.'''
-
-    def __init__(self, config):
-        txprotobuf.DatagramProtocol.__init__(self, s2s)
-
-    def boxReceived(self, addr, data, fingerprint, tx_id = None):
-        # optional reply
-        r = None
-        name = data.__class__.__name__
-        print "box received from %s" % (fingerprint, ), data
-
-        if name == 'UserPresence':
-            self.service.user_presence(str(data.user_id), data.event, data.status_message)
-
-        if r:
-            self.sendBox(addr, r, tx_id)
-
-
 class C2SServerProtocol(InternalServerProtocol):
     pinger = None
     ping_txid = None

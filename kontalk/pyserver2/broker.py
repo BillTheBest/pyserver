@@ -94,13 +94,10 @@ class MessageBroker(service.Service):
         # datasource it will not be used if not neededs
         self.storage.set_datasource(self.db)
 
-        # retrieve serverlist
-        # TODO move to storage api
+        # retrieve serverlist and keyring
         self.servers = database.servers(self.db)
-        # FIXME silly methods, just throw them away!
         self.serverlist = self.servers.get_list()
-        self.servermap = self.servers.get_map()
-        self.keyring = self.servers.get_keyring()
+        self.keyring = [x for x in self.serverlist.iterkeys()]
 
         # create push notifications manager
         if self.config['server']['push_notifications']:
@@ -121,19 +118,22 @@ class MessageBroker(service.Service):
         s2s_service.setServiceParent(self.parent)
 
         # create listening service for servers (notifications and requests)
+        """
         protocol = S2SRequestServerProtocol(self.config)
         self.network = S2SRequestChannel(protocol, self)
         s2s_service = internet.UDPServer(port=self.config['server']['s2s.bind'][1],
             protocol=protocol, interface=self.config['server']['s2s.bind'][0])
         s2s_service.setServiceParent(self.parent)
+        """
 
         # create Kadmelia node (GPG signed DHT)
         # TODO read bind address from configuration
+        # TODO MySQL storage
         datastore = SQLiteDataStore('dht_' + self.fingerprint + '.db')
-        self.dht = SignedNode(self.fingerprint, self.keyring, self.config['server']['dht.bind'][1], datastore)
+        self.dht = SignedNode(self.fingerprint, self.keyring, self.config['server']['s2s.bind'][1], datastore)
 
         # join DHT network
-        addrs = [(str(x['host']), int(x['dht_port'])) for x in self.serverlist]
+        addrs = [(str(x['host']), int(x['s2s'])) for x in self.serverlist.itervalues()]
         log.debug("joining DHT: %s" % addrs)
         self.dht.joinNetwork(addrs)
 

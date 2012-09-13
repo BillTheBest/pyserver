@@ -152,7 +152,7 @@ class GPGBencode(Bencode):
     """
 
     def encode(self, data, fingerprint):
-        return token.sign_node_data(self._encode(data), fingerprint)
+        return token.node_data(self._encode(data), fingerprint)
 
     def decode(self, data, keyring):
         fp, data = token.verify_node_data(data, keyring)
