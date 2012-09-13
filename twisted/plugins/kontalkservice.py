@@ -27,8 +27,6 @@ from twisted.plugin import IPlugin
 from twisted.application.service import IServiceMaker, IService
 from twisted.application import internet
 
-from kontalk.pyserver2 import app
-
 
 class Options(usage.Options):
     optParameters = [["config", "c", "server.conf", "Configuration file."]]
@@ -41,6 +39,7 @@ class KontalkServiceMaker(object):
     options = Options
 
     def makeService(self, options):
+        from kontalk.pyserver2 import app
         appl = app.PyserverApp(options)
         return IService(appl.setup())
 
