@@ -14,6 +14,8 @@ from twisted.internet import defer
 import kademlia.node
 from kademlia.node import rpcmethod
 
+import kontalklib.logging as log
+
 
 class EntangledNode(kademlia.node.Node):
     """ Entangled DHT node
@@ -290,6 +292,37 @@ class SignedNode(kademlia.node.Node):
         hash = hashlib.sha1()
         hash.update(str(self.fingerprint))
         return hash.digest()
+
+    def _error(self, error):
+        log.error("DHT error: %s" % error.getErrorMessage())
+
+    def keyhash(self, key):
+        h = hashlib.sha1()
+        h.update(key)
+        return h.digest()
+
+    def select_for_update(self, key, func):
+        def _proceed_if_newer(data, cb):
+            log.debug("data: %s, cb: %s" % (data, cb))
+            if type(data) != dict:
+                # TODO no value created yet
+                pass
+            else:
+                # TODO old dictionary found - compare timestamps
+                pass
+
+        cb = defer.Deferred()
+        cb.addCallback(func)
+
+        d = self.iterativeFindValue(self.keyhash(key))
+        d.addCallback(_proceed_if_newer, cb)
+        d.addErrback(self._error)
+
+    def _touch_user(self, store):
+        log.debug("store: %s" % store)
+
+    def touch_user(self, userid):
+        self.select_for_update(userid, self._touch_user)
 
 
 if __name__ == '__main__':

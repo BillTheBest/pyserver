@@ -129,7 +129,7 @@ class MessageBroker(service.Service):
         # create Kadmelia node (GPG signed DHT)
         # TODO read bind address from configuration
         # TODO MySQL storage
-        datastore = SQLiteDataStore('dht_' + self.fingerprint + '.db')
+        datastore = None #SQLiteDataStore('dht_' + self.fingerprint + '.db')
         self.dht = SignedNode(self.fingerprint, self.keyring, self.config['server']['s2s.bind'][1], datastore)
 
         # join DHT network
@@ -139,7 +139,7 @@ class MessageBroker(service.Service):
 
         # TEST DHT test
         def testDHT():
-            #self.dht.printContacts()
+            self.dht.printContacts()
 
             def getValueCallback(result):
                 if type(result) == dict:
@@ -153,20 +153,20 @@ class MessageBroker(service.Service):
             if self.fingerprint == '37D0E678CDD19FB9B182B3804C9539B401F8229C':
                 def storeValueCallback(*args, **kwargs):
                     print 'Value stored successfully'
-                    #d = self.dht.iterativeFindValue("ciao")
+                    #d = self.dht.iterativeFindValue("584fb3000e857d399b0c99fe14ba65df8663e697UMP6QTVX")
                     #d.addCallback(getValueCallback)
                     #d.addErrback(genericErrorCallback)
 
-                deferredResult = self.dht.iterativeStore("ciao", "zio")
+                deferredResult = self.dht.iterativeStore("584fb3000e857d399b0c99fe14ba65df8663e697UMP6QTVX", "zio")
                 deferredResult.addCallback(storeValueCallback)
                 deferredResult.addErrback(genericErrorCallback)
             else:
-                d = self.dht.iterativeFindValue("ciao")
+                d = self.dht.iterativeFindValue("584fb3000e857d399b0c99fe14ba65df8663e697UMP6QTVX")
                 d.addCallback(getValueCallback)
                 d.addErrback(genericErrorCallback)
 
         #reactor.callLater(3, testDHT)
-        self._loop(3, testDHT, False)
+        #self._loop(3, testDHT, False)
         # TEST DHT test END
 
         if self.push_manager:
@@ -324,7 +324,7 @@ class MessageBroker(service.Service):
             # end user storage
             self.storage.stop(userid)
             # touch user
-            self.storage.touch_user(userid)
+            self.dht.touch_user(userid)
             try:
                 # remove callbacks
                 del self._callbacks[userid]
@@ -367,12 +367,14 @@ class MessageBroker(service.Service):
                     _broadcast(self, userid, sub, event, status)
 
         # broadcast to servers
+        """
         box = s2s.UserPresence()
         box.event = event
         box.user_id = userid
         if status != None:
             box.status_message = status
         self.network.broadcast(box)
+        """
 
     def get_presence_subscribers(self, userid):
         '''Returns a tuple containing presence subscribers respectively for the generic user and the specific user.'''

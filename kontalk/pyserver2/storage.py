@@ -31,10 +31,6 @@ class MessageStorage:
         '''Sets a datasource after-init.'''
         pass
 
-    def get_timestamp(self, uid):
-        '''Retrieves the timestamp of a user/mailbox.'''
-        pass
-
     def stop(self, uid):
         '''Stops a storage for a userid.'''
         pass
@@ -67,6 +63,25 @@ class MessageStorage:
         '''Returns the full path of a file in the extra storage.'''
         pass
 
+    def purge_messages(self):
+        '''Purges expired/unknown messages.'''
+        pass
+
+    def purge_extra(self):
+        '''Purges expired/orphan files on extra storage.'''
+        pass
+
+    def purge_validations(self):
+        '''Purges old validation entries.'''
+        pass
+
+    ''' TODO all these go to DHT '''
+
+    """
+    def get_timestamp(self, uid):
+        '''Retrieves the timestamp of a user/mailbox.'''
+        pass
+
     def touch_user(self, uid):
         '''Updates user last seen time to now.'''
         pass
@@ -82,18 +97,8 @@ class MessageStorage:
     def purge_users(self):
         '''Purges old user entries.'''
         pass
+    """
 
-    def purge_messages(self):
-        '''Purges expired/unknown messages.'''
-        pass
-
-    def purge_extra(self):
-        '''Purges expired/orphan files on extra storage.'''
-        pass
-
-    def purge_validations(self):
-        '''Purges old validation entries.'''
-        pass
 
 class PersistentDictStorage(MessageStorage):
     '''PersistentDict-based message storage.
@@ -235,11 +240,6 @@ class MySQLStorage(MessageStorage):
         except:
             pass
 
-    def get_timestamp(self, uid):
-        '''Retrieves the timestamp of a user/mailbox.'''
-        dd = self.userdb.get(uid, False)
-        return long(time.mktime(dd['timestamp'].timetuple())) if dd else None
-
     def stop(self, uid):
         '''Invalidates user message cache.'''
         self._invalidate(uid)
@@ -371,6 +371,29 @@ class MySQLStorage(MessageStorage):
         if att:
             return str(os.path.join(self._extra_path, att['filename'])), str(att['mime']), str(att['md5sum'])
 
+    def purge_messages(self):
+        '''Purges expired/unknown messages.'''
+        # decrease TTL for messages without a usercache entry
+        self.msgdb.ttl_expired()
+        # delete expired messages
+        self.msgdb.purge_expired(1)
+
+    def purge_extra(self):
+        '''Purges expired/orphan files on extra storage.'''
+        return self.attdb.purge_expired()
+
+    def purge_validations(self):
+        '''Purges old validation entries.'''
+        return self.valdb.purge_expired()
+
+    ''' TODO all these go to DHT '''
+
+    """
+    def get_timestamp(self, uid):
+        '''Retrieves the timestamp of a user/mailbox.'''
+        dd = self.userdb.get(uid, False)
+        return long(time.mktime(dd['timestamp'].timetuple())) if dd else None
+
     def touch_user(self, uid):
         '''Updates user last seen time to now.'''
         if len(uid) == utils.USERID_LENGTH_RESOURCE:
@@ -393,18 +416,4 @@ class MySQLStorage(MessageStorage):
     def purge_users(self):
         '''Purges old user entries.'''
         return self.userdb.purge_old_entries()
-
-    def purge_messages(self):
-        '''Purges expired/unknown messages.'''
-        # decrease TTL for messages without a usercache entry
-        self.msgdb.ttl_expired()
-        # delete expired messages
-        self.msgdb.purge_expired(1)
-
-    def purge_extra(self):
-        '''Purges expired/orphan files on extra storage.'''
-        return self.attdb.purge_expired()
-
-    def purge_validations(self):
-        '''Purges old validation entries.'''
-        return self.valdb.purge_expired()
+    """
