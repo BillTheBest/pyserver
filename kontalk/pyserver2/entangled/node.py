@@ -7,13 +7,14 @@
 # The docstrings in this module contain epytext markup; API documentation
 # may be created by processing this file with epydoc: http://epydoc.sf.net
 
-import hashlib
+import time, hashlib
 
 from twisted.internet import defer
 
 import kademlia.node
 from kademlia.node import rpcmethod
 
+from kontalklib import utils
 import kontalklib.logging as log
 
 
@@ -119,7 +120,8 @@ class EntangledNode(kademlia.node.Node):
                 # An index already exists; add our value to it
                 index = results[kwKey]
                 #TODO: this might not actually be an index, but a value... do some name-mangling to avoid this
-                index.append(indexLink)
+                if indexLink not in index:
+                    index.append(indexLink)
             else:
                 # An index does not yet exist for this keyword; create one
                 index = [indexLink]
@@ -280,13 +282,14 @@ class EntangledNode(kademlia.node.Node):
         return keywordKeys
 
 
-class SignedNode(kademlia.node.Node):
+class SignedNode(EntangledNode):
     """ GPG signed DHT node """
-    def __init__(self, fingerprint, keyring, udpPort=4000, dataStore=None, routingTable=None, networkProtocol=None):
+    def __init__(self, broker, udpPort=4000, dataStore=None, routingTable=None, networkProtocol=None):
         # id is generated from fingerprint
-        self.fingerprint = fingerprint
-        self.keyring = keyring
-        kademlia.node.Node.__init__(self, self._generateID(), udpPort, dataStore, routingTable, networkProtocol)
+        self.fingerprint = broker.fingerprint
+        self.keyring = broker.keyring
+        self.broker = broker
+        EntangledNode.__init__(self, self._generateID(), udpPort, dataStore, routingTable, networkProtocol)
 
     def _generateID(self):
         hash = hashlib.sha1()
@@ -294,35 +297,103 @@ class SignedNode(kademlia.node.Node):
         return hash.digest()
 
     def _error(self, error):
-        log.error("DHT error: %s" % error.getErrorMessage())
+        log.error("DHT error: %s" % error)
 
     def keyhash(self, key):
         h = hashlib.sha1()
         h.update(key)
         return h.digest()
 
-    def select_for_update(self, key, func):
-        def _proceed_if_newer(data, cb):
-            log.debug("data: %s, cb: %s" % (data, cb))
+    def userkey(self, userid):
+        if len(userid) == utils.USERID_LENGTH:
+            return userid
+        else:
+            return userid[:utils.USERID_LENGTH] + '/' + userid[utils.USERID_LENGTH:]
+
+    def store_user_attributes(self, userid, fields):
+        '''Stores a user attribute if newer.'''
+        key = self.userkey(userid)
+        log.debug("storing data with key %s" % key)
+        hkey = self.keyhash(key)
+
+        def _found(data, deferred, *args, **kwargs):
+            log.debug("store/data: %s" % data)
+
             if type(data) != dict:
-                # TODO no value created yet
-                pass
+                data = { 'userid' : userid }
             else:
-                # TODO old dictionary found - compare timestamps
-                pass
+                data = data[hkey]
 
-        cb = defer.Deferred()
-        cb.addCallback(func)
+            # update dict
+            data.update(fields)
 
-        d = self.iterativeFindValue(self.keyhash(key))
-        d.addCallback(_proceed_if_newer, cb)
+            def _store_result(result, *args, **kwargs):
+                '''Value has been stored in DHT, call user callback'''
+                deferred.callback(result)
+
+            d = self.publishData(key, data)
+            d.addCallback(_store_result, deferred)
+            d.addErrback(self._error)
+
+        userdefer = defer.Deferred()
+        d = self.iterativeFindValue(hkey)
+        d.addCallback(_found, userdefer)
         d.addErrback(self._error)
+        return userdefer
 
-    def _touch_user(self, store):
-        log.debug("store: %s" % store)
+    def find_user_attributes(self, userid):
+        log.debug("find: %s" % userid)
+        key = self.userkey(userid)
+        hkey = self.keyhash(key)
+
+        def _found(data, deferred, *args, **kwargs):
+            log.debug("find/data: %s" % data)
+            if type(data) != dict:
+                data = None
+            else:
+                data = data[hkey]
+                if type(data) != dict:
+                    # DHT returned a list of matched keys, lookup all of them
+                    data = [x.replace('/', '') for x in data]
+                    d = self.get_user_stat_massive(data)
+                    d.addCallback(deferred.callback)
+                    return
+
+            deferred.callback(data)
+
+        userdefer = defer.Deferred()
+        d = self.iterativeFindValue(hkey)
+        d.addCallback(_found, userdefer)
+        d.addErrback(self._error)
+        return userdefer
+
+    def user_login(self, userid):
+        '''Marks the user as logged in here.'''
+        self.store_user_attributes(userid, { 'server' : self.fingerprint })
+
+    def user_logout(self, userid):
+        '''Marks the user as logged out from here.'''
+        self.touch_user(userid)
+        self.store_user_attributes(userid, { 'server' : None })
 
     def touch_user(self, userid):
-        self.select_for_update(userid, self._touch_user)
+        '''Updates the timestamp field of a userid to now.'''
+        return self.store_user_attributes(userid, {'timestamp': time.time()})
+
+    def update_user(self, userid, fields):
+        '''Updates fields for a userid (wrapper for store_user_attributes).'''
+        return self.store_user_attributes(userid, fields)
+
+    def get_user_stat_massive(self, users):
+        '''Lookup multiple users at once.'''
+        deferlist = []
+        for userid in users:
+            deferlist.append(self.find_user_attributes(userid))
+        return defer.gatherResults(deferlist, consumeErrors=True)
+
+    def get_user_stat(self, userid):
+        '''Lookup a user.'''
+        return self.find_user_attributes(userid)
 
 
 if __name__ == '__main__':

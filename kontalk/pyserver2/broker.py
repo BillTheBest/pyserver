@@ -129,8 +129,8 @@ class MessageBroker(service.Service):
         # create Kadmelia node (GPG signed DHT)
         # TODO read bind address from configuration
         # TODO MySQL storage
-        datastore = None #SQLiteDataStore('dht_' + self.fingerprint + '.db')
-        self.dht = SignedNode(self.fingerprint, self.keyring, self.config['server']['s2s.bind'][1], datastore)
+        datastore = SQLiteDataStore('dht_' + self.fingerprint + '.db')
+        self.dht = SignedNode(self, self.config['server']['s2s.bind'][1], datastore)
 
         # join DHT network
         addrs = [(str(x['host']), int(x['s2s'])) for x in self.serverlist.itervalues()]
@@ -139,7 +139,7 @@ class MessageBroker(service.Service):
 
         # TEST DHT test
         def testDHT():
-            self.dht.printContacts()
+            #self.dht.printContacts()
 
             def getValueCallback(result):
                 if type(result) == dict:
@@ -149,6 +149,13 @@ class MessageBroker(service.Service):
 
             def genericErrorCallback(failure):
                 print 'An error has occurred:', failure.getErrorMessage()
+
+            #d = self.dht.iterativeFindValue(self.dht.keyhash(self.dht.userkey("e73ea3be23d0449597a82c62ed981f584a5c181bLO3L8CE4")))
+            #d = self.dht.iterativeFindValue(self.dht.keyhash("e73ea3be23d0449597a82c62ed981f584a5c181b"))
+            d = self.dht.find_user_attributes("e73ea3be23d0449597a82c62ed981f584a5c181b")
+            d.addCallback(getValueCallback)
+            d.addErrback(genericErrorCallback)
+            return
 
             if self.fingerprint == '37D0E678CDD19FB9B182B3804C9539B401F8229C':
                 def storeValueCallback(*args, **kwargs):
@@ -305,6 +312,9 @@ class MessageBroker(service.Service):
         if self.push_manager:
             self.push_manager.mark_user_online(userid)
 
+        # user has logged in
+        self.dht.user_login(userid)
+
         # broadcast presence
         self.broadcast_presence(userid, c2s.UserPresence.EVENT_ONLINE)
 
@@ -323,8 +333,8 @@ class MessageBroker(service.Service):
         try:
             # end user storage
             self.storage.stop(userid)
-            # touch user
-            self.dht.touch_user(userid)
+            # user has logged out
+            self.dht.user_logout(userid)
             try:
                 # remove callbacks
                 del self._callbacks[userid]

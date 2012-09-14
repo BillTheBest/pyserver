@@ -188,17 +188,22 @@ class C2SServerProtocol(InternalServerProtocol):
 
         elif name == 'UserLookupRequest':
             if self.service.is_logged():
-                r = c2s.UserLookupResponse()
+                # lookup can delay operations by a long time, so defer it
+                def lookup_complete(found, tx_id):
+                    r = c2s.UserLookupResponse()
+                    for u in found:
+                        e = r.entry.add()
+                        e.user_id = u['userid']
+                        if 'status' in u:
+                            e.status = u['status']
+                        if 'timestamp' in u:
+                            e.timestamp = u['timestamp']
+                        if 'timediff' in u:
+                            e.timediff = u['timediff']
+                    self.sendBox(r, tx_id)
+
                 found = self.service.lookup_users(str(tx_id), tuple(data.user_id))
-                for u in found:
-                    e = r.entry.add()
-                    e.user_id = u['userid']
-                    if 'status' in u:
-                        e.status = u['status']
-                    if 'timestamp' in u:
-                        e.timestamp = u['timestamp']
-                    if 'timediff' in u:
-                        e.timediff = u['timediff']
+                found.addCallback(lookup_complete, str(tx_id))
 
         elif name == 'ServerInfoRequest':
             r = c2s.ServerInfoResponse()

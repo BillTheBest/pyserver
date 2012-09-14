@@ -20,8 +20,10 @@
 
 
 import os, time
-import kontalklib.logging as log
 
+from twisted.internet import defer
+
+import kontalklib.logging as log
 from kontalklib import token, database, utils
 import kontalklib.c2s_pb2 as c2s
 
@@ -143,10 +145,67 @@ class C2SChannel:
         return self.broker.ack_user(self.userid, messages)
 
     def lookup_users(self, tx_id, users):
-        ret = []
+        # setup a deferred to return
+        d = defer.Deferred()
+
+        def _stat_found(found):
+            # call the outer deferred
+            ret = {}
+            for _stat in found:
+                if type(_stat) == dict:
+                    data = [_stat]
+                else:
+                    data = _stat if _stat else []
+
+                for stat in data:
+                    if stat:
+                        userid, resource = utils.split_userid(stat['userid'])
+
+                        log.debug("LOOKUP/%s" % (stat,))
+                        # check if user is online here or has an assigned server
+                        if self.broker.user_online(stat['userid']) or stat['server']:
+                            if userid not in ret:
+                                ret[userid] = {'userid' : userid}
+                            ret[userid]['timediff'] = 0
+                            if 'status' in stat and stat['status']:
+                                ret[userid]['status'] = stat['status']
+                            # user is online: remove timestamp
+                            try:
+                                del ret[userid]['timestamp']
+                            except:
+                                pass
+                        else:
+                            # consider updating timestamp if user is not online here
+                            if 'timestamp' in stat and stat['timestamp'] and (userid not in ret or 'timestamp' in ret[userid]):
+                                if userid not in ret:
+                                    ret[userid] = {'userid' : userid}
+
+                                ts = long(stat['timestamp'])
+                                # update timestamp only if newer
+                                log.debug("TSDIFF %s old=%d new=%d" % (userid, ret[userid]['timestamp'] if 'timestamp' in ret[userid] else -1, ts))
+                                if 'timestamp' not in ret[userid] or ret[userid]['timestamp'] < ts:
+                                    ret[userid]['timestamp'] = ts
+                                    ret[userid]['timediff'] = long(time.time()-ts)
+
+                                if 'status' in stat and stat['status']:
+                                    ret[userid]['status'] = stat['status']
+
+            log.debug("RESULT/%s" % (ret,))
+            d.callback(ret.values())
+
+        dstat = self.broker.dht.get_user_stat_massive(users)
+        dstat.addCallback(_stat_found)
+
+        """
         for u in users:
             userid = str(u)
-            stat = self.broker.storage.get_user_stat(userid)
+            def _stat_found(found):
+                # call the outer deferred
+                d.callback(found)
+
+            dstat = self.broker.dht.get_user_stat_massive(userid, ('timestamp', 'status'))
+            dstat.addCallback(_stat_found)
+
             # check if user is online, otherwise ask storage
             if self.broker.user_online(userid):
                 dd = {
@@ -167,8 +226,9 @@ class C2SChannel:
                         dd['status'] = stat['status']
 
                     ret.append(dd)
+        """
 
-        return ret
+        return d
 
     def user_update(self, status_msg = None, google_regid = None):
         fields = {}
@@ -183,7 +243,7 @@ class C2SChannel:
             fields['google_registrationid'] = google_regid if len(google_regid) > 0 else None
 
         try:
-            self.broker.storage.update_user(self.userid, fields)
+            self.broker.dht.update_user(self.userid, fields)
             if 'status' in fields:
                 self.broker.broadcast_presence(self.userid, c2s.UserPresence.EVENT_STATUS_CHANGED, fields['status'])
             return c2s.UserInfoUpdateResponse.STATUS_SUCCESS
@@ -210,7 +270,7 @@ class C2SChannel:
             # delete verification entry in validations table
             valdb.delete(code)
             # touch user so we get a first presence
-            self.broker.storage.touch_user(userid)
+            self.broker.dht.touch_user(userid)
 
             # here is your token
             log.debug("[%s] generating token for %s" % (tx_id, userid))

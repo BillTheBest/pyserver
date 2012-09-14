@@ -10,7 +10,7 @@
 """ This module defines the charaterizing constants of the Kademlia network
 
 C{checkRefreshInterval} and C{udpDatagramMaxSize} are implementation-specific
-constants, and do not affect general Kademlia operation. 
+constants, and do not affect general Kademlia operation.
 """
 
 ######### KADEMLIA CONSTANTS ###########
@@ -22,7 +22,7 @@ alpha = 3
 k = 8
 
 #: Timeout for network operations (in seconds)
-rpcTimeout = 5
+rpcTimeout = 3
 
 # Delay between iterations of iterative node lookups (for loose parallelism)  (in seconds)
 iterativeLookupDelay = rpcTimeout / 2
@@ -43,4 +43,4 @@ checkRefreshInterval = refreshTimeout/5
 
 #: Max size of a single UDP datagram, in bytes. If a message is larger than this, it will
 #: be spread accross several UDP packets.
-udpDatagramMaxSize = 8192 # 8 KB
+udpDatagramMaxSize = 512 # old: 8 KB
