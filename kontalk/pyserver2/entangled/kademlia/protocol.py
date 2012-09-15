@@ -119,7 +119,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
 
         if isinstance(message, msgtypes.RequestMessage):
             # This is an RPC method request
-            self._handleRPC(remoteContact, message.id, message.request, message.args)
+            self._handleRPC(remoteContact, message.id, fingerprint, message.request, message.args)
         elif isinstance(message, msgtypes.ResponseMessage):
             # Find the message that triggered this response
             if self._sentMessages.has_key(message.id):
@@ -229,7 +229,7 @@ class KademliaProtocol(protocol.DatagramProtocol):
         encodedMsg = self._encoder.encode(msgPrimitive, self._node.fingerprint)
         self._send(encodedMsg, rpcID, (contact.address, contact.port))
 
-    def _handleRPC(self, senderContact, rpcID, method, args):
+    def _handleRPC(self, senderContact, rpcID, fingerprint, method, args):
         """ Executes a local function in response to an RPC request """
         # Set up the deferred callchain
         def handleError(f):
@@ -247,12 +247,15 @@ class KademliaProtocol(protocol.DatagramProtocol):
         if callable(func) and hasattr(func, 'rpcmethod'):
             # Call the exposed Node method and return the result to the deferred callback chain
             try:
+                # insert fingerprint at first
+                args2 = list(args)
+                args2.insert(0, fingerprint)
                 try:
                     # Try to pass the sender's node id to the function...
-                    result = func(*args, **{'_rpcNodeID': senderContact.id, '_rpcNodeContact': senderContact})
+                    result = func(*args2, **{'_rpcNodeID': senderContact.id, '_rpcNodeContact': senderContact})
                 except TypeError:
                     # ...or simply call it if that fails
-                    result = func(*args)
+                    result = func(*args2)
             except Exception, e:
                 df.errback(failure.Failure(e))
             else:

@@ -28,7 +28,7 @@ from twisted.application import internet, service
 from twisted.internet import task, reactor
 
 # local imports
-import storage
+import storage, keyring
 from channels import *
 from broker_twisted import *
 import version, storage
@@ -94,10 +94,9 @@ class MessageBroker(service.Service):
         # datasource it will not be used if not neededs
         self.storage.set_datasource(self.db)
 
-        # retrieve serverlist and keyring
-        self.servers = database.servers(self.db)
-        self.serverlist = self.servers.get_list()
-        self.keyring = [x for x in self.serverlist.iterkeys()]
+        # setup keyring
+        sdb = database.servers(self.db)
+        self.keyring = keyring.Keyring(sdb, self.fingerprint)
 
         # create push notifications manager
         if self.config['server']['push_notifications']:
@@ -133,7 +132,7 @@ class MessageBroker(service.Service):
         self.dht = SignedNode(self, self.config['server']['s2s.bind'][1], datastore)
 
         # join DHT network
-        addrs = [(str(x['host']), int(x['s2s'])) for x in self.serverlist.itervalues()]
+        addrs = [(str(x['host']), int(x['s2s'])) for x in self.keyring.itervalues()]
         log.debug("joining DHT: %s" % addrs)
         self.dht.joinNetwork(addrs)
 
@@ -148,14 +147,13 @@ class MessageBroker(service.Service):
                     print 'Value not found'
 
             def genericErrorCallback(failure):
-                print 'An error has occurred:', failure.getErrorMessage()
+                print 'An error has occurred:', failure
 
             #d = self.dht.iterativeFindValue(self.dht.keyhash(self.dht.userkey("e73ea3be23d0449597a82c62ed981f584a5c181bLO3L8CE4")))
             #d = self.dht.iterativeFindValue(self.dht.keyhash("e73ea3be23d0449597a82c62ed981f584a5c181b"))
-            d = self.dht.find_user_attributes("e73ea3be23d0449597a82c62ed981f584a5c181b")
-            d.addCallback(getValueCallback)
-            d.addErrback(genericErrorCallback)
-            return
+            #d = self.dht.find_user_attributes("e73ea3be23d0449597a82c62ed981f584a5c181b")
+            #d.addCallback(getValueCallback)
+            #d.addErrback(genericErrorCallback)
 
             if self.fingerprint == '37D0E678CDD19FB9B182B3804C9539B401F8229C':
                 def storeValueCallback(*args, **kwargs):
@@ -164,16 +162,16 @@ class MessageBroker(service.Service):
                     #d.addCallback(getValueCallback)
                     #d.addErrback(genericErrorCallback)
 
-                deferredResult = self.dht.iterativeStore("584fb3000e857d399b0c99fe14ba65df8663e697UMP6QTVX", "zio")
+                deferredResult = self.dht.iterativeStore(self.dht.userkeyhash("584fb3000e857d399b0c99fe14ba65df8663e697UMP6QTVX"), "zio")
                 deferredResult.addCallback(storeValueCallback)
                 deferredResult.addErrback(genericErrorCallback)
             else:
-                d = self.dht.iterativeFindValue("584fb3000e857d399b0c99fe14ba65df8663e697UMP6QTVX")
+                d = self.dht.iterativeFindValue(self.dht.userkeyhash("584fb3000e857d399b0c99fe14ba65df8663e697UMP6QTVX"))
                 d.addCallback(getValueCallback)
                 d.addErrback(genericErrorCallback)
 
         #reactor.callLater(3, testDHT)
-        #self._loop(3, testDHT, False)
+        self._loop(3, testDHT, False)
         # TEST DHT test END
 
         if self.push_manager:

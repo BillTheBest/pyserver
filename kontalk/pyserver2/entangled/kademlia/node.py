@@ -174,9 +174,9 @@ class Node(object):
                 # we should store the value at ourselves as well
                 if self._routingTable.distance(key, self.id) < self._routingTable.distance(key, nodes[-1].id):
                     nodes.pop()
-                    self.store(key, value, originalPublisherID=originalPublisherID, age=age)
+                    self._store(key, value, originalPublisherID=originalPublisherID, age=age)
             else:
-                self.store(key, value, originalPublisherID=originalPublisherID, age=age)
+                self._store(key, value, originalPublisherID=originalPublisherID, age=age)
             for contact in nodes:
                 contact.store(key, value, originalPublisherID, age)
             return nodes
@@ -300,15 +300,14 @@ class Node(object):
         return df
 
     @rpcmethod
-    def ping(self):
+    def ping(self, fingerprint):
         """ Used to verify contact between two Kademlia nodes
 
         @rtype: str
         """
         return 'pong'
 
-    @rpcmethod
-    def store(self, key, value, originalPublisherID=None, age=0, **kwargs):
+    def _store(self, key, value, originalPublisherID=None, age=0, **kwargs):
         """ Store the received data in this node's local hash table
 
         @param key: The hashtable key of the data
@@ -347,8 +346,7 @@ class Node(object):
         self._dataStore.setItem(key, value, now, originallyPublished, originalPublisherID)
         return 'OK'
 
-    @rpcmethod
-    def findNode(self, key, **kwargs):
+    def _findNode(self, fingerprint, key, **kwargs):
         """ Finds a number of known nodes closest to the node/value with the
         specified key.
 
@@ -372,8 +370,7 @@ class Node(object):
             contactTriples.append( (contact.id, contact.address, contact.port) )
         return contactTriples
 
-    @rpcmethod
-    def findValue(self, key, **kwargs):
+    def _findValue(self, key, **kwargs):
         """ Return the value associated with the specified key if present in
         this node's data, otherwise execute FIND_NODE for the key
 
@@ -387,7 +384,7 @@ class Node(object):
         if key in self._dataStore:
             return {key: self._dataStore[key]}
         else:
-            return self.findNode(key, **kwargs)
+            return self._findNode(key, **kwargs)
 
 #    def _distance(self, keyOne, keyTwo):
 #        """ Calculate the XOR result between two string variables
@@ -674,7 +671,7 @@ class Node(object):
 
     def _persistState(self, *args):
         state = {'id': self.id,
-                 'closestNodes': self.findNode(self.id)}
+                 'closestNodes': self._findNode(self.id)}
         now = int(time.time())
         self._dataStore.setItem('nodeState', state, now, now, self.id)
 

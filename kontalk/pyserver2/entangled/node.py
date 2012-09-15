@@ -247,7 +247,7 @@ class EntangledNode(kademlia.node.Node):
         return df
 
     @rpcmethod
-    def delete(self, key, **kwargs):
+    def delete(self, fingerprint, key, **kwargs):
         """ Deletes the the specified key (and it's value) if present in
         this node's data, and executes FIND_NODE for the key
 
@@ -264,7 +264,7 @@ class EntangledNode(kademlia.node.Node):
         if key in self._dataStore:
             del self._dataStore[key]
         # ...and make this RPC propagate through the network (like a FIND_VALUE for a non-existant value)
-        return self.findNode(key, **kwargs)
+        return self.findNode(fingerprint, key, **kwargs)
 
     def _keywordHashesFromString(self, text):
         """ Create hash keys for the keywords contained in the specified text string """
@@ -281,6 +281,13 @@ class EntangledNode(kademlia.node.Node):
                 keywordKeys.append(key)
         return keywordKeys
 
+class NotAuthorizedError(Exception):
+    def __init__(self, message):
+        self.message = message
+
+    def __str__(self):
+        return self.message
+
 
 class SignedNode(EntangledNode):
     """ GPG signed DHT node """
@@ -296,6 +303,31 @@ class SignedNode(EntangledNode):
         hash.update(str(self.fingerprint))
         return hash.digest()
 
+    @rpcmethod
+    def store(self, fingerprint, key, value, originalPublisherID=None, age=0, **kwargs):
+        '''Check if node is allowed to store to us.'''
+        if self.keyring.has_privilege(str(fingerprint), 'dht'):
+            return EntangledNode._store(self, key, value, originalPublisherID, age, **kwargs)
+        else:
+            log.debug("DHT/store: permission denied")
+            raise NotAuthorizedError, 'Not enough privileges.'
+
+    @rpcmethod
+    def findNode(self, fingerprint, key, **kwargs):
+        if self.keyring.has_privilege(str(fingerprint), 'dht'):
+            return EntangledNode._findNode(self, key, **kwargs)
+        else:
+            log.debug("DHT/findNode: permission denied")
+            raise NotAuthorizedError, 'Not enough privileges.'
+
+    @rpcmethod
+    def findValue(self, fingerprint, key, **kwargs):
+        if self.keyring.has_privilege(str(fingerprint), 'dht'):
+            return EntangledNode._findValue(self, key, **kwargs)
+        else:
+            log.debug("DHT/findValue: permission denied")
+            raise NotAuthorizedError, 'Not enough privileges.'
+
     def _error(self, error):
         log.error("DHT error: %s" % error)
 
@@ -310,8 +342,11 @@ class SignedNode(EntangledNode):
         else:
             return userid[:utils.USERID_LENGTH] + '/' + userid[utils.USERID_LENGTH:]
 
+    def userkeyhash(self, userid):
+        return self.keyhash(self.userkey(userid))
+
     def store_user_attributes(self, userid, fields):
-        '''Stores a user attribute if newer.'''
+        '''Stores user data.'''
         key = self.userkey(userid)
         log.debug("storing data with key %s" % key)
         hkey = self.keyhash(key)
@@ -342,6 +377,7 @@ class SignedNode(EntangledNode):
         return userdefer
 
     def find_user_attributes(self, userid):
+        '''Find a user's data.'''
         log.debug("find: %s" % userid)
         key = self.userkey(userid)
         hkey = self.keyhash(key)
