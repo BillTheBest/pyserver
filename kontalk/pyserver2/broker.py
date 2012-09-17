@@ -524,7 +524,7 @@ class MessageBroker(service.Service):
             duser = defer.Deferred()
             def _lookup(result, local_users, deferred):
                 log.debug("return from lookup: %s / %s / %s" % (result, local_users, deferred))
-                setup = []
+                setup = local_users
                 for r in result:
                     for e in r[2].entry:
                         s = {
