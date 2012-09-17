@@ -517,11 +517,15 @@ class MessageBroker(service.Service):
                     # remote lookup
                     lookup.append(u)
 
-        """
         if len(lookup) > 0:
-            # TODO remote lookup
-            return defer.Deferred()
+            # TEST
+            def _lookup(*args):
+                log.debug("return from lookup: %s" (args, ))
+            import kontalklib.s2s_pb2 as s2s
+            r = s2s.UserLookupRequest()
+            r.user_id.extend(lookup)
+            d = self.network.broadcast(r)
+            d.addCallback(_lookup, local_users)
+            return d
         else:
             return local_users
-        """
-        return local_users

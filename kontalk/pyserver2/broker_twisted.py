@@ -60,16 +60,27 @@ class S2SMessageServerProtocol(InternalServerProtocol):
 class S2SRequestServerProtocol(txprotobuf.DatagramProtocol):
     '''Server-to-server request protocol.'''
 
+    '''Map of packets waiting for a response.'''
     _tx = {}
 
     def __init__(self, config):
         txprotobuf.DatagramProtocol.__init__(self, s2s)
 
-    def boxReceived(self, addr, data, fingerprint, tx_id = None):
+    def boxReceived(self, fingerprint, tx_id, data, addr):
         # optional reply
         r = None
         name = data.__class__.__name__
         print "box received from %s" % (fingerprint, ), data
+
+        fingerprint = str(fingerprint)
+        tx_id = str(tx_id)
+
+        # tx is pending response
+        if fingerprint in self._tx and tx_id in self._tx[fingerprint]:
+            self._tx[fingerprint][tx_id].callback(str(fingerprint), data)
+            del self._tx[fingerprint][tx_id]
+
+        # process requests anyway
 
         if name == 'UserPresence':
             self.service.user_presence(str(fingerprint), str(data.user_id), data.event, data.status_message)
@@ -88,7 +99,19 @@ class S2SRequestServerProtocol(txprotobuf.DatagramProtocol):
                     e.timediff = u['timediff']
 
         if r:
-            self.sendBox(addr, r, tx_id)
+            # we don't want a deferred for a response packet
+            txprotobuf.DatagramProtocol.sendBox.sendBox(self, addr, r, tx_id)
+
+    def sendBox(self, fingerprint, data, tx_id = None):
+        tx_id = txprotobuf.DatagramProtocol.sendBox(self, self.keyring.s2s_addr(fingerprint), data, tx_id)
+        # store the request
+        d = defer.Deferred()
+        if fingerprint not in self._tx:
+            self._tx[fingerprint] = dict()
+        self._tx[fingerprint][tx_id] = d
+
+        return tx_id, d
+
 
 class C2SServerProtocol(InternalServerProtocol):
     pinger = None

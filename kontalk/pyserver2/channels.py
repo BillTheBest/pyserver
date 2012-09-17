@@ -411,10 +411,12 @@ class S2SRequestChannel:
 
     def broadcast(self, box, tx_id = None):
         # TODO handle shutdown: self.protocol.trasport is null!!
-        for s in self.broker.serverlist:
-            addr = s['serverlink'].split(':')
-            self.protocol.sendBox((addr[0], int(addr[1])), box, tx_id)
-
+        jobs = []
+        for fp in self.broker.keyring:
+            if self.protocol.fingerprint != fp:
+                tx_id, d = self.protocol.sendBox(fp, box, tx_id)
+                jobs.append(d)
+        return defer.gatherResults(jobs)
 
     @protoservice
     def user_presence(self, fingerprint, userid, event, status = None):

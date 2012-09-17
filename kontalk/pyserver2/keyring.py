@@ -48,6 +48,10 @@ class Keyring:
         self._keyring = [x for x in self._list.iterkeys()]
         self._keyring.insert(0, self.fingerprint)
 
+    def s2s_addr(self, fingerprint):
+        d = self._list[fingerprint]
+        return d['host'], d['s2s']
+
     def get_server_trust(self, fingerprint):
         '''Returns the trust level (ie how many servers trust another) of a given server.'''
         count = 0
