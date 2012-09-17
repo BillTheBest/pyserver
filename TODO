@@ -1,3 +1,5 @@
+[ ] s2s communication: use Deferred based on tx_id
+[ ] usercache expiration (restore from revision history)
 [ ] channels.py/incoming/a.length: what if file is not found?
 [ ] validations.code should be UNIQUE - handle this also in server code
 [ ] send error receipts for expired messages
@@ -10,7 +12,6 @@
 [x] reject messages to unknown users? (usercache must be always valid)
 [x] still problems when posting a file more than once (first: error, next: success - file goes wrong)
 [x] table indexes
-[x] usercache expiration
 
 -- scheduled --
 [ ] multithread: c2s/s2s

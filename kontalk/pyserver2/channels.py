@@ -29,6 +29,10 @@ import kontalklib.c2s_pb2 as c2s
 
 import version, broker
 
+def protoservice(func):
+    '''Apply this decorator to methods callable by protocol classes.'''
+    func.servicemethod = True
+    return func
 
 class C2SChannel:
     '''Client channel implementation.'''
@@ -41,10 +45,12 @@ class C2SChannel:
         self.broker = broker
         self.config = config
 
+    @protoservice
     def connected(self):
         addr = self.protocol.transport.getPeer()
         log.debug("new client connection from %s" % addr.host)
 
+    @protoservice
     def disconnected(self):
         if self.userid:
             addr = self.protocol.transport.getPeer()
@@ -54,9 +60,11 @@ class C2SChannel:
         else:
             log.debug("disconnected.")
 
+    @protoservice
     def is_logged(self):
         return self.userid != None
 
+    @protoservice
     def authenticate(self, tx_id, auth_token):
         '''Client tried to authenticate.'''
         #log.debug("[%s] authenticating token: %s" % (tx_id, auth_token))
@@ -76,6 +84,7 @@ class C2SChannel:
 
         return False
 
+    @protoservice
     def serverinfo(self, tx_id, client_version = None, client_protocol = None):
         # TODO shall we check client protocol revision compatibility?
         info = {
@@ -100,6 +109,7 @@ class C2SChannel:
 
         return info
 
+    @protoservice
     def post_message(self, tx_id, recipient = None, mime = None, flags = None, content = None):
         '''User posted a message.'''
         #log.debug("[%s] posting message for: %s (mime=%s, flags=%s)" % (tx_id, str(recipient), mime, str(flags)))
@@ -143,10 +153,12 @@ class C2SChannel:
 
         return res
 
+    @protoservice
     def ack_message(self, tx_id, messages):
         '''User acknowledged one or more messages.'''
         return self.broker.ack_user(self.userid, messages)
 
+    @protoservice
     def lookup_users(self, tx_id, users):
         # setup a deferred to return
         d = defer.Deferred()
@@ -212,6 +224,7 @@ class C2SChannel:
         else:
             return _stat_found(dstat, False)
 
+    @protoservice
     def user_update(self, status_msg = None, google_regid = None):
         fields = {}
         if status_msg != None:
@@ -234,9 +247,11 @@ class C2SChannel:
             traceback.print_exc()
             return c2s.UserInfoUpdateResponse.STATUS_ERROR
 
+    @protoservice
     def user_presence_subscribe(self, userid, events):
         return self.broker.subscribe_user_presence(self.userid, userid, events)
 
+    @protoservice
     def validate_user(self, tx_id, code):
         if not code or len(code) != utils.VALIDATION_CODE_LENGTH:
             return c2s.ValidationResponse.STATUS_FAILED, None
@@ -263,6 +278,7 @@ class C2SChannel:
         else:
             return c2s.ValidationResponse.STATUS_FAILED, None
 
+    @protoservice
     def register_user(self, tx_id, username):
         # hiding username for privacy reasons
         log.debug("[%s] registering user via %s" % (tx_id, self.config['registration']['type']))
@@ -331,6 +347,7 @@ class C2SChannel:
         else:
             return c2s.RegistrationResponse.STATUS_ERROR
 
+    @protoservice
     def revalidate(self):
         valdb = database.validations(self.broker.db)
         userid = self.userid[:utils.USERID_LENGTH] + utils.rand_str(8, utils.CHARSBOX_AZN_UPPERCASE)
@@ -341,7 +358,7 @@ class C2SChannel:
         else:
             return False
 
-
+    @protoservice
     def incoming(self, data, unused = None):
         '''Internal queue worker.'''
         # TODO check for missing keys
@@ -363,6 +380,7 @@ class C2SChannel:
             a.length = os.path.getsize(filename)
         self.protocol.sendBox(a)
 
+    @protoservice
     def conflict(self):
         '''Called on resource conflict.'''
         log.debug("resource conflict for %s" % self.userid)
@@ -371,10 +389,12 @@ class C2SChannel:
         self.zombie = True
         self.protocol.transport.loseConnection()
 
+    @protoservice
     def idle(self):
         # too much verbose -- log.debug("idle connection, sending ping to %s" % self.userid)
         pass
 
+    @protoservice
     def ping_timeout(self):
         '''Called on ping timeout.'''
         log.debug("ping timeout for %s" % self.userid)
@@ -395,9 +415,25 @@ class S2SRequestChannel:
             addr = s['serverlink'].split(':')
             self.protocol.sendBox((addr[0], int(addr[1])), box, tx_id)
 
-    def user_presence(self, userid, event, status = None):
+
+    @protoservice
+    def user_presence(self, fingerprint, userid, event, status = None):
         # TODO
         log.debug("user %s event %d (status=%s)" % (userid, event, status))
+
+    @protoservice
+    def lookup_users(self, fingerprint, users):
+        '''Lookup users connected locally.'''
+        log.debug("request lookup from %s for %s" % (fingerprint, users))
+        ret = []
+        for u in users:
+            stat = self.broker.usercache.get_user_data(u)
+            if not stat:
+                if self.broker.user_online(u):
+                    ret.append({'userid':u})
+            else:
+                ret.append(stat)
+        return ret
 
 
 class S2SMessageChannel:

@@ -33,9 +33,6 @@ from channels import *
 from broker_twisted import *
 from txrdq import ResizableDispatchQueue
 
-from entangled.node import SignedNode
-from entangled.kademlia.datastore import SQLiteDataStore
-
 from kontalklib import database, utils
 
 # mime type for receipt messages
@@ -519,7 +516,6 @@ class MessageBroker(service.Service):
                 else:
                     # remote lookup
                     lookup.append(u)
-
 
         """
         if len(lookup) > 0:

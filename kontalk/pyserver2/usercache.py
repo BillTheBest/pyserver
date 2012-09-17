@@ -23,11 +23,6 @@ import os, time
 from kontalklib import database, utils
 import kontalklib.logging as log
 
-REMOTE_FALSE = 0
-REMOTE_IF_NOT_FOUND = 1
-REMOTE_IF_GENERIC = 2
-REMOTE_FORCE = 3
-
 
 class Usercache:
     '''Interface for a usercache storage.'''
