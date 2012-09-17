@@ -22,10 +22,10 @@ alpha = 3
 k = 8
 
 #: Timeout for network operations (in seconds)
-rpcTimeout = 3
+rpcTimeout = 5
 
 # Delay between iterations of iterative node lookups (for loose parallelism)  (in seconds)
-iterativeLookupDelay = rpcTimeout / 2
+iterativeLookupDelay = 0.5 # rpcTimeout / 2
 
 #: If a k-bucket has not been used for this amount of time, refresh it (in seconds)
 refreshTimeout = 3600 # 1 hour
@@ -43,4 +43,4 @@ checkRefreshInterval = refreshTimeout/5
 
 #: Max size of a single UDP datagram, in bytes. If a message is larger than this, it will
 #: be spread accross several UDP packets.
-udpDatagramMaxSize = 512 # old: 8 KB
+udpDatagramMaxSize = 8192 # 8 KB

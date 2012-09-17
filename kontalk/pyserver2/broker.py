@@ -170,8 +170,24 @@ class MessageBroker(service.Service):
                 d.addCallback(getValueCallback)
                 d.addErrback(genericErrorCallback)
 
+        def benchmarkDHT1():
+            if self.fingerprint == '37D0E678CDD19FB9B182B3804C9539B401F8229C':
+                count = 50000000
+                log.debug("inserting %d users in the DHT" % count)
+                def _process(start=0):
+                    if start < count:
+                        for i in range(start, start + 1000):
+                            userid = utils.rand_str(40, utils.CHARSBOX_HEX_LOWERCASE) + utils.rand_str(8, utils.CHARSBOX_AZN_UPPERCASE)
+                            self.dht.user_logout(userid)
+                        reactor.callLater(0, _process, start + 1001)
+                    else:
+                        log.debug("users inserted. Good luck.")
+
+                reactor.callLater(0, _process)
+
         #reactor.callLater(3, testDHT)
-        self._loop(3, testDHT, False)
+        #self._loop(3, testDHT, False)
+        reactor.callLater(3, benchmarkDHT1)
         # TEST DHT test END
 
         if self.push_manager:

@@ -202,7 +202,7 @@ class C2SServerProtocol(InternalServerProtocol):
                             e.timediff = u['timediff']
                     self.sendBox(r, tx_id)
 
-                found = self.service.lookup_users(str(tx_id), tuple(data.user_id))
+                found = self.service.lookup_users(str(tx_id), [str(x) for x in data.user_id])
                 found.addCallback(lookup_complete, str(tx_id))
 
         elif name == 'ServerInfoRequest':

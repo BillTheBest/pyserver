@@ -86,6 +86,9 @@ class C2SChannel:
             'supports' : []
         }
 
+        if 'registration' in self.config:
+            info['supports'].append('auth_token')
+
         # TODO supports should be modular
         # support for Google Cloud Messaging push notification service
         try:
@@ -147,8 +150,12 @@ class C2SChannel:
     def lookup_users(self, tx_id, users):
         # setup a deferred to return
         d = defer.Deferred()
+        start = time.time()
 
         def _stat_found(found):
+            end = time.time()
+            log.debug("lookup of %d users in DHT took %.2f seconds (found %d users)" % (len(users), end-start, len(found)))
+
             # call the outer deferred
             ret = {}
             for _stat in found:
@@ -157,13 +164,14 @@ class C2SChannel:
                 else:
                     data = _stat if _stat else []
 
+                log.debug("CHECK/%s" % (data,))
                 for stat in data:
                     if stat:
                         userid, resource = utils.split_userid(stat['userid'])
 
                         log.debug("LOOKUP/%s" % (stat,))
                         # check if user is online here or has an assigned server
-                        if self.broker.user_online(stat['userid']) or stat['server']:
+                        if self.broker.user_online(stat['userid']) or ('server' in stat and stat['server']):
                             if userid not in ret:
                                 ret[userid] = {'userid' : userid}
                             ret[userid]['timediff'] = 0
@@ -190,8 +198,11 @@ class C2SChannel:
                                 if 'status' in stat and stat['status']:
                                     ret[userid]['status'] = stat['status']
 
-            log.debug("RESULT/%s" % (ret,))
+            #log.debug("RESULT/%s" % (ret,))
             d.callback(ret.values())
+
+        # TEST for u in users:
+        # TEST     self.broker.dht.user_logout(u + utils.rand_str(8, utils.CHARSBOX_AZN_UPPERCASE))
 
         dstat = self.broker.dht.get_user_stat_massive(users)
         dstat.addCallback(_stat_found)

@@ -307,6 +307,7 @@ class SignedNode(EntangledNode):
     def store(self, fingerprint, key, value, originalPublisherID=None, age=0, **kwargs):
         '''Check if node is allowed to store to us.'''
         if self.keyring.has_privilege(str(fingerprint), 'dht'):
+            log.debug("storing data: %s" % value)
             return EntangledNode._store(self, key, value, originalPublisherID, age, **kwargs)
         else:
             log.debug("DHT/store: permission denied")
@@ -345,14 +346,32 @@ class SignedNode(EntangledNode):
     def userkeyhash(self, userid):
         return self.keyhash(self.userkey(userid))
 
+    def _keywordHashesFromString(self, text):
+        """ Modified version to extract only the first keyword. """
+        keywordKeys = []
+        splitText = text.lower()
+        for splitter in self.keywordSplitters:
+            splitText = splitText.replace(splitter, ' ')
+        for keyword in splitText.split():
+            # Only consider keywords with 3 or more letters
+            if len(keyword) >= 3 and keyword != text and keyword not in self.invalidKeywords:
+                #log.debug("adding keyword %s" % keyword)
+                h = hashlib.sha1()
+                h.update(keyword)
+                key = h.digest()
+                keywordKeys.append(key)
+                # break here :)
+                break
+        return keywordKeys
+
     def store_user_attributes(self, userid, fields):
         '''Stores user data.'''
         key = self.userkey(userid)
-        log.debug("storing data with key %s" % key)
+        #log.debug("storing data with key %s: %s" % (key, fields))
         hkey = self.keyhash(key)
 
         def _found(data, deferred, *args, **kwargs):
-            log.debug("store/data: %s" % data)
+            #log.debug("store/data: %s" % data)
 
             if type(data) != dict:
                 data = { 'userid' : userid }
@@ -378,12 +397,12 @@ class SignedNode(EntangledNode):
 
     def find_user_attributes(self, userid):
         '''Find a user's data.'''
-        log.debug("find: %s" % userid)
+        #log.debug("find: %s" % userid)
         key = self.userkey(userid)
         hkey = self.keyhash(key)
 
         def _found(data, deferred, *args, **kwargs):
-            log.debug("find/data: %s" % data)
+            #log.debug("find/data: %s" % data)
             if type(data) != dict:
                 data = None
             else:
@@ -409,8 +428,7 @@ class SignedNode(EntangledNode):
 
     def user_logout(self, userid):
         '''Marks the user as logged out from here.'''
-        self.touch_user(userid)
-        self.store_user_attributes(userid, { 'server' : None })
+        self.store_user_attributes(userid, { 'server' : None, 'timestamp': time.time() })
 
     def touch_user(self, userid):
         '''Updates the timestamp field of a userid to now.'''
