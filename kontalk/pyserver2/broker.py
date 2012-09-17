@@ -539,8 +539,13 @@ class MessageBroker(service.Service):
                         setup.append(s)
                 duser.callback(setup)
 
+            def _error(result, local_users, deferred):
+                # TODO handle errors
+                log.debug("error in lookup: %s / %s / %s" % (result, local_users, deferred))
+
             d = self.network.lookup_broadcast(lookup)
             d.addCallback(_lookup, local_users, duser)
+            d.addErrback(_error, local_users, duser)
             return duser
         else:
             return local_users

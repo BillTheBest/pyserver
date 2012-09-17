@@ -21,7 +21,7 @@
 
 from twisted.internet.protocol import ServerFactory, connectionDone
 from twisted.internet.task import LoopingCall
-from twisted.internet import reactor, protocol, defer
+from twisted.internet import reactor, protocol, defer, error
 
 import time
 from kontalklib import txprotobuf, utils
@@ -62,9 +62,16 @@ class S2SRequestServerProtocol(txprotobuf.DatagramProtocol):
 
     '''Map of packets waiting for a response.'''
     _tx = {}
+    '''Timeout delay.'''
+    timeout_delay = 5
 
     def __init__(self, config):
         txprotobuf.DatagramProtocol.__init__(self, s2s)
+
+    def _timeout(self, user_defer):
+        '''Handles a deferred timeout.'''
+        if not user_defer.called:
+            user_defer.errback(error.TimeoutError('Server did not respond.'))
 
     def boxReceived(self, fingerprint, tx_id, data):
         # optional reply
@@ -110,6 +117,7 @@ class S2SRequestServerProtocol(txprotobuf.DatagramProtocol):
         if fingerprint not in self._tx:
             self._tx[fingerprint] = dict()
         self._tx[fingerprint][tx_id] = d
+        reactor.callLater(self.timeout_delay, self._timeout, d)
 
         return tx_id, d
 
