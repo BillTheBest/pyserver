@@ -276,6 +276,8 @@ class MessageBroker(service.Service):
         try:
             # end user storage
             self.storage.stop(userid)
+            # user logout
+            self.usercache.touch_user(userid)
             try:
                 # remove callbacks
                 del self._callbacks[userid]
@@ -518,14 +520,27 @@ class MessageBroker(service.Service):
                     lookup.append(u)
 
         if len(lookup) > 0:
-            # TEST
-            def _lookup(*args):
-                log.debug("return from lookup: %s" (args, ))
-            import kontalklib.s2s_pb2 as s2s
-            r = s2s.UserLookupRequest()
-            r.user_id.extend(lookup)
-            d = self.network.broadcast(r)
-            d.addCallback(_lookup, local_users)
-            return d
+            # user deferred
+            duser = defer.Deferred()
+            def _lookup(result, local_users, deferred):
+                log.debug("return from lookup: %s / %s / %s" % (result, local_users, deferred))
+                setup = []
+                for r in result:
+                    for e in r[2].entry:
+                        s = {
+                            'server': r[0],
+                            'userid' : e.user_id
+                        }
+                        if e.HasField('timestamp'):
+                            s['timestamp'] = e.timestamp
+                        if e.HasField('status'):
+                            s['status'] = e.status
+
+                        setup.append(s)
+                duser.callback(setup)
+
+            d = self.network.lookup_broadcast(lookup)
+            d.addCallback(_lookup, local_users, duser)
+            return duser
         else:
             return local_users

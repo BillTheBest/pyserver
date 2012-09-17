@@ -24,7 +24,7 @@ from twisted.internet.task import LoopingCall
 from twisted.internet import reactor, protocol, defer
 
 import time
-from kontalklib import txprotobuf
+from kontalklib import txprotobuf, utils
 
 import kontalklib.c2s_pb2 as c2s
 import kontalklib.s2s_pb2 as s2s
@@ -66,32 +66,33 @@ class S2SRequestServerProtocol(txprotobuf.DatagramProtocol):
     def __init__(self, config):
         txprotobuf.DatagramProtocol.__init__(self, s2s)
 
-    def boxReceived(self, fingerprint, tx_id, data, addr):
+    def boxReceived(self, fingerprint, tx_id, data):
         # optional reply
         r = None
         name = data.__class__.__name__
-        print "box received from %s" % (fingerprint, ), data
+        print "box received from %s (%s)" % (fingerprint, tx_id), data
 
         fingerprint = str(fingerprint)
         tx_id = str(tx_id)
 
         # tx is pending response
         if fingerprint in self._tx and tx_id in self._tx[fingerprint]:
-            self._tx[fingerprint][tx_id].callback(str(fingerprint), data)
+            self._tx[fingerprint][tx_id].callback((str(fingerprint), tx_id, data))
             del self._tx[fingerprint][tx_id]
 
         # process requests anyway
 
         if name == 'UserPresence':
-            self.service.user_presence(str(fingerprint), str(data.user_id), data.event, data.status_message)
+            self.service.user_presence(fingerprint, str(data.user_id), data.event, data.status_message)
 
         elif name == 'UserLookupRequest':
-            found = self.service.lookup_users(str(fingerprint), tuple(data.user_id))
+            found = self.service.lookup_users(fingerprint, [str(x) for x in data.user_id])
             r = c2s.UserLookupResponse()
+            print "FOUND", found
             for u in found:
                 e = r.entry.add()
                 e.user_id = u['userid']
-                if 'status' in u:
+                if 'status' in u and u['status']:
                     e.status = u['status']
                 if 'timestamp' in u:
                     e.timestamp = u['timestamp']
@@ -100,7 +101,7 @@ class S2SRequestServerProtocol(txprotobuf.DatagramProtocol):
 
         if r:
             # we don't want a deferred for a response packet
-            txprotobuf.DatagramProtocol.sendBox.sendBox(self, addr, r, tx_id)
+            txprotobuf.DatagramProtocol.sendBox(self, self.keyring.s2s_addr(fingerprint), r, tx_id)
 
     def sendBox(self, fingerprint, data, tx_id = None):
         tx_id = txprotobuf.DatagramProtocol.sendBox(self, self.keyring.s2s_addr(fingerprint), data, tx_id)
@@ -261,11 +262,12 @@ class C2SServerProtocol(InternalServerProtocol):
                     else:
                         self.sendBox(r, tx_id)
 
-                found = self.service.lookup_users(str(tx_id), [str(x) for x in data.user_id])
+                # force generic users only
+                found = self.service.lookup_users(tx_id, [str(x)[:utils.USERID_LENGTH] for x in data.user_id])
                 if isinstance(found, defer.Deferred):
-                    found.addCallback(lookup_complete, str(tx_id))
+                    found.addCallback(lookup_complete, tx_id)
                 else:
-                    r = lookup_complete(found, str(tx_id), True)
+                    r = lookup_complete(found, tx_id, True)
 
         elif name == 'ServerInfoRequest':
             r = c2s.ServerInfoResponse()

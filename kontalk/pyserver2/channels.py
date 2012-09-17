@@ -26,6 +26,7 @@ from twisted.internet import defer
 import kontalklib.logging as log
 from kontalklib import token, database, utils
 import kontalklib.c2s_pb2 as c2s
+import kontalklib.s2s_pb2 as s2s
 
 import version, broker
 
@@ -168,47 +169,38 @@ class C2SChannel:
             end = time.time()
             log.debug("lookup of %d users took %.2f seconds (found %d users)" % (len(users), end-start, len(found)))
 
-            # call the outer deferred
             ret = {}
-            for _stat in found:
-                if type(_stat) == dict:
-                    data = [_stat]
+            for stat in found:
+                userid, resource = utils.split_userid(stat['userid'])
+
+                log.debug("LOOKUP/%s" % (stat,))
+                # check if user is online here
+                if self.broker.user_online(stat['userid']):
+                    if userid not in ret:
+                        ret[userid] = {'userid' : userid}
+                    ret[userid]['timediff'] = 0
+                    if 'status' in stat and stat['status']:
+                        ret[userid]['status'] = stat['status']
+                    # user is online: remove timestamp
+                    try:
+                        del ret[userid]['timestamp']
+                    except:
+                        pass
                 else:
-                    data = _stat if _stat else []
+                    # consider updating timestamp if user is not online here
+                    if 'timestamp' in stat and stat['timestamp'] and (userid not in ret or 'timestamp' in ret[userid]):
+                        if userid not in ret:
+                            ret[userid] = {'userid' : userid}
 
-                #log.debug("CHECK/%s" % (data,))
-                for stat in data:
-                    if stat:
-                        userid, resource = utils.split_userid(stat['userid'])
+                        ts = long(stat['timestamp'])
+                        # update timestamp only if newer
+                        #log.debug("TSDIFF %s old=%d new=%d" % (userid, ret[userid]['timestamp'] if 'timestamp' in ret[userid] else -1, ts))
+                        if 'timestamp' not in ret[userid] or ret[userid]['timestamp'] < ts:
+                            ret[userid]['timestamp'] = ts
+                            ret[userid]['timediff'] = long(time.time()-ts)
 
-                        #log.debug("LOOKUP/%s" % (stat,))
-                        # check if user is online here or has an assigned server
-                        if self.broker.user_online(stat['userid']) or ('server' in stat and stat['server']):
-                            if userid not in ret:
-                                ret[userid] = {'userid' : userid}
-                            ret[userid]['timediff'] = 0
-                            if 'status' in stat and stat['status']:
-                                ret[userid]['status'] = stat['status']
-                            # user is online: remove timestamp
-                            try:
-                                del ret[userid]['timestamp']
-                            except:
-                                pass
-                        else:
-                            # consider updating timestamp if user is not online here
-                            if 'timestamp' in stat and stat['timestamp'] and (userid not in ret or 'timestamp' in ret[userid]):
-                                if userid not in ret:
-                                    ret[userid] = {'userid' : userid}
-
-                                ts = long(stat['timestamp'])
-                                # update timestamp only if newer
-                                #log.debug("TSDIFF %s old=%d new=%d" % (userid, ret[userid]['timestamp'] if 'timestamp' in ret[userid] else -1, ts))
-                                if 'timestamp' not in ret[userid] or ret[userid]['timestamp'] < ts:
-                                    ret[userid]['timestamp'] = ts
-                                    ret[userid]['timediff'] = long(time.time()-ts)
-
-                                if 'status' in stat and stat['status']:
-                                    ret[userid]['status'] = stat['status']
+                        if 'status' in stat and stat['status']:
+                            ret[userid]['status'] = stat['status']
 
             log.debug("RESULT/%s" % (ret,))
             ret = ret.values()
@@ -413,10 +405,17 @@ class S2SRequestChannel:
         # TODO handle shutdown: self.protocol.trasport is null!!
         jobs = []
         for fp in self.broker.keyring:
+            # do not send to local server
             if self.protocol.fingerprint != fp:
                 tx_id, d = self.protocol.sendBox(fp, box, tx_id)
+                log.debug("sent broadcast to %s (%s)" % (fp, tx_id))
                 jobs.append(d)
         return defer.gatherResults(jobs)
+
+    def lookup_broadcast(self, users):
+        r = s2s.UserLookupRequest()
+        r.user_id.extend(users)
+        return self.broadcast(r)
 
     @protoservice
     def user_presence(self, fingerprint, userid, event, status = None):
@@ -429,12 +428,17 @@ class S2SRequestChannel:
         log.debug("request lookup from %s for %s" % (fingerprint, users))
         ret = []
         for u in users:
+            nstat = {'userid' : u}
             stat = self.broker.usercache.get_user_data(u)
-            if not stat:
-                if self.broker.user_online(u):
-                    ret.append({'userid':u})
-            else:
-                ret.append(stat)
+            if stat:
+                if stat['status']:
+                    nstat['status'] = stat['status']
+
+            if not self.broker.user_online(u) and stat:
+                nstat['timestamp'] = stat['timestamp']
+
+            ret.append(nstat)
+        log.debug("lookup will return %s" % (ret, ))
         return ret
 
 
