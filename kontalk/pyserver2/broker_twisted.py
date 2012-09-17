@@ -70,7 +70,7 @@ class S2SRequestServerProtocol(txprotobuf.DatagramProtocol):
         # optional reply
         r = None
         name = data.__class__.__name__
-        print "box received from %s (%s)" % (fingerprint, tx_id), data
+        #print "box received from %s (%s)" % (fingerprint, tx_id), data
 
         fingerprint = str(fingerprint)
         tx_id = str(tx_id)

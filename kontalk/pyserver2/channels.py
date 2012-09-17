@@ -173,7 +173,7 @@ class C2SChannel:
             for stat in found:
                 userid, resource = utils.split_userid(stat['userid'])
 
-                log.debug("LOOKUP/%s" % (stat,))
+                #log.debug("LOOKUP/%s" % (stat,))
                 # check if user is online here
                 if self.broker.user_online(stat['userid']):
                     if userid not in ret:
