@@ -152,9 +152,9 @@ class C2SChannel:
         d = defer.Deferred()
         start = time.time()
 
-        def _stat_found(found):
+        def _stat_found(found, deferred = True):
             end = time.time()
-            log.debug("lookup of %d users in DHT took %.2f seconds (found %d users)" % (len(users), end-start, len(found)))
+            log.debug("lookup of %d users took %.2f seconds (found %d users)" % (len(users), end-start, len(found)))
 
             # call the outer deferred
             ret = {}
@@ -164,12 +164,12 @@ class C2SChannel:
                 else:
                     data = _stat if _stat else []
 
-                log.debug("CHECK/%s" % (data,))
+                #log.debug("CHECK/%s" % (data,))
                 for stat in data:
                     if stat:
                         userid, resource = utils.split_userid(stat['userid'])
 
-                        log.debug("LOOKUP/%s" % (stat,))
+                        #log.debug("LOOKUP/%s" % (stat,))
                         # check if user is online here or has an assigned server
                         if self.broker.user_online(stat['userid']) or ('server' in stat and stat['server']):
                             if userid not in ret:
@@ -190,7 +190,7 @@ class C2SChannel:
 
                                 ts = long(stat['timestamp'])
                                 # update timestamp only if newer
-                                log.debug("TSDIFF %s old=%d new=%d" % (userid, ret[userid]['timestamp'] if 'timestamp' in ret[userid] else -1, ts))
+                                #log.debug("TSDIFF %s old=%d new=%d" % (userid, ret[userid]['timestamp'] if 'timestamp' in ret[userid] else -1, ts))
                                 if 'timestamp' not in ret[userid] or ret[userid]['timestamp'] < ts:
                                     ret[userid]['timestamp'] = ts
                                     ret[userid]['timediff'] = long(time.time()-ts)
@@ -198,48 +198,19 @@ class C2SChannel:
                                 if 'status' in stat and stat['status']:
                                     ret[userid]['status'] = stat['status']
 
-            #log.debug("RESULT/%s" % (ret,))
-            d.callback(ret.values())
-
-        # TEST for u in users:
-        # TEST     self.broker.dht.user_logout(u + utils.rand_str(8, utils.CHARSBOX_AZN_UPPERCASE))
-
-        dstat = self.broker.dht.get_user_stat_massive(users)
-        dstat.addCallback(_stat_found)
-
-        """
-        for u in users:
-            userid = str(u)
-            def _stat_found(found):
-                # call the outer deferred
-                d.callback(found)
-
-            dstat = self.broker.dht.get_user_stat_massive(userid, ('timestamp', 'status'))
-            dstat.addCallback(_stat_found)
-
-            # check if user is online, otherwise ask storage
-            if self.broker.user_online(userid):
-                dd = {
-                    'userid' : userid,
-                    'timediff' : 0
-                }
-                if stat and stat['status']:
-                    dd['status'] = stat['status']
-                ret.append(dd)
+            log.debug("RESULT/%s" % (ret,))
+            ret = ret.values()
+            if deferred:
+                d.callback(ret)
             else:
-                if stat and stat['timestamp']:
-                    dd = {
-                        'userid' : userid,
-                        'timestamp' : stat['timestamp'],
-                        'timediff' : long(time.time()-stat['timestamp']),
-                    }
-                    if stat and stat['status']:
-                        dd['status'] = stat['status']
+                return ret
 
-                    ret.append(dd)
-        """
-
-        return d
+        dstat = self.broker.lookup_users(users)
+        if isinstance(dstat, defer.Deferred):
+            dstat.addCallback(_stat_found)
+            return d
+        else:
+            return _stat_found(dstat, False)
 
     def user_update(self, status_msg = None, google_regid = None):
         fields = {}
@@ -254,7 +225,7 @@ class C2SChannel:
             fields['google_registrationid'] = google_regid if len(google_regid) > 0 else None
 
         try:
-            self.broker.dht.update_user(self.userid, fields)
+            self.broker.usercache.set_user_data(self.userid, fields)
             if 'status' in fields:
                 self.broker.broadcast_presence(self.userid, c2s.UserPresence.EVENT_STATUS_CHANGED, fields['status'])
             return c2s.UserInfoUpdateResponse.STATUS_SUCCESS
@@ -281,7 +252,7 @@ class C2SChannel:
             # delete verification entry in validations table
             valdb.delete(code)
             # touch user so we get a first presence
-            self.broker.dht.touch_user(userid)
+            self.broker.usercache.touch_user(userid)
 
             # here is your token
             log.debug("[%s] generating token for %s" % (tx_id, userid))
@@ -408,6 +379,25 @@ class C2SChannel:
         '''Called on ping timeout.'''
         log.debug("ping timeout for %s" % self.userid)
         self.protocol.transport.loseConnection()
+
+
+class S2SRequestChannel:
+    def __init__(self, protocol, broker):
+        self.protocol = protocol
+        self.broker = broker
+        self.protocol.service = self
+        self.protocol.keyring = broker.keyring
+        self.protocol.fingerprint = str(self.broker.config['server']['fingerprint'])
+
+    def broadcast(self, box, tx_id = None):
+        # TODO handle shutdown: self.protocol.trasport is null!!
+        for s in self.broker.serverlist:
+            addr = s['serverlink'].split(':')
+            self.protocol.sendBox((addr[0], int(addr[1])), box, tx_id)
+
+    def user_presence(self, userid, event, status = None):
+        # TODO
+        log.debug("user %s event %d (status=%s)" % (userid, event, status))
 
 
 class S2SMessageChannel:

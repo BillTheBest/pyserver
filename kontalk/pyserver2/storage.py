@@ -75,9 +75,6 @@ class MessageStorage:
         '''Purges old validation entries.'''
         pass
 
-    ''' TODO all these go to DHT '''
-
-    """
     def get_timestamp(self, uid):
         '''Retrieves the timestamp of a user/mailbox.'''
         pass
@@ -97,7 +94,6 @@ class MessageStorage:
     def purge_users(self):
         '''Purges old user entries.'''
         pass
-    """
 
 
 class PersistentDictStorage(MessageStorage):

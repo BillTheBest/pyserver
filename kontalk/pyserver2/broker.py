@@ -28,10 +28,9 @@ from twisted.application import internet, service
 from twisted.internet import task, reactor
 
 # local imports
-import storage, keyring
+import version, storage, usercache, keyring
 from channels import *
 from broker_twisted import *
-import version, storage
 from txrdq import ResizableDispatchQueue
 
 from entangled.node import SignedNode
@@ -78,7 +77,6 @@ class MessageBroker(service.Service):
     def __init__(self, application, config):
         self.setServiceParent(application)
         self.config = config
-        self.storage = storage.__dict__[config['broker']['storage'][0]](*config['broker']['storage'][1:])
         self.fingerprint = str(config['server']['fingerprint'])
 
     def print_version(self):
@@ -89,10 +87,14 @@ class MessageBroker(service.Service):
         self.print_version()
         log.debug("broker init")
 
+        self.storage = storage.__dict__[self.config['broker']['storage'][0]](*self.config['broker']['storage'][1:])
+        self.usercache = usercache.__dict__[self.config['broker']['usercache'][0]](*self.config['broker']['usercache'][1:])
+
         # estabilish a connection to the database
         self.db = database.connect_config(self.config)
-        # datasource it will not be used if not neededs
+        # datasource it will not be used if not needed
         self.storage.set_datasource(self.db)
+        self.usercache.set_datasource(self.db)
 
         # setup keyring
         sdb = database.servers(self.db)
@@ -117,78 +119,11 @@ class MessageBroker(service.Service):
         s2s_service.setServiceParent(self.parent)
 
         # create listening service for servers (notifications and requests)
-        """
         protocol = S2SRequestServerProtocol(self.config)
         self.network = S2SRequestChannel(protocol, self)
         s2s_service = internet.UDPServer(port=self.config['server']['s2s.bind'][1],
             protocol=protocol, interface=self.config['server']['s2s.bind'][0])
         s2s_service.setServiceParent(self.parent)
-        """
-
-        # create Kadmelia node (GPG signed DHT)
-        # TODO read bind address from configuration
-        # TODO MySQL storage
-        datastore = SQLiteDataStore('dht_' + self.fingerprint + '.db')
-        self.dht = SignedNode(self, self.config['server']['s2s.bind'][1], datastore)
-
-        # join DHT network
-        addrs = [(str(x['host']), int(x['s2s'])) for x in self.keyring.itervalues()]
-        log.debug("joining DHT: %s" % addrs)
-        self.dht.joinNetwork(addrs)
-
-        # TEST DHT test
-        def testDHT():
-            #self.dht.printContacts()
-
-            def getValueCallback(result):
-                if type(result) == dict:
-                    print 'Value successfully retrieved: %s' % result
-                else:
-                    print 'Value not found'
-
-            def genericErrorCallback(failure):
-                print 'An error has occurred:', failure
-
-            #d = self.dht.iterativeFindValue(self.dht.keyhash(self.dht.userkey("e73ea3be23d0449597a82c62ed981f584a5c181bLO3L8CE4")))
-            #d = self.dht.iterativeFindValue(self.dht.keyhash("e73ea3be23d0449597a82c62ed981f584a5c181b"))
-            #d = self.dht.find_user_attributes("e73ea3be23d0449597a82c62ed981f584a5c181b")
-            #d.addCallback(getValueCallback)
-            #d.addErrback(genericErrorCallback)
-
-            if self.fingerprint == '37D0E678CDD19FB9B182B3804C9539B401F8229C':
-                def storeValueCallback(*args, **kwargs):
-                    print 'Value stored successfully'
-                    #d = self.dht.iterativeFindValue("584fb3000e857d399b0c99fe14ba65df8663e697UMP6QTVX")
-                    #d.addCallback(getValueCallback)
-                    #d.addErrback(genericErrorCallback)
-
-                deferredResult = self.dht.iterativeStore(self.dht.userkeyhash("584fb3000e857d399b0c99fe14ba65df8663e697UMP6QTVX"), "zio")
-                deferredResult.addCallback(storeValueCallback)
-                deferredResult.addErrback(genericErrorCallback)
-            else:
-                d = self.dht.iterativeFindValue(self.dht.userkeyhash("584fb3000e857d399b0c99fe14ba65df8663e697UMP6QTVX"))
-                d.addCallback(getValueCallback)
-                d.addErrback(genericErrorCallback)
-
-        def benchmarkDHT1():
-            if self.fingerprint == '37D0E678CDD19FB9B182B3804C9539B401F8229C':
-                count = 50000000
-                log.debug("inserting %d users in the DHT" % count)
-                def _process(start=0):
-                    if start < count:
-                        for i in range(start, start + 1000):
-                            userid = utils.rand_str(40, utils.CHARSBOX_HEX_LOWERCASE) + utils.rand_str(8, utils.CHARSBOX_AZN_UPPERCASE)
-                            self.dht.user_logout(userid)
-                        reactor.callLater(0, _process, start + 1001)
-                    else:
-                        log.debug("users inserted. Good luck.")
-
-                reactor.callLater(0, _process)
-
-        #reactor.callLater(3, testDHT)
-        #self._loop(3, testDHT, False)
-        reactor.callLater(3, benchmarkDHT1)
-        # TEST DHT test END
 
         if self.push_manager:
             self._push_init()
@@ -326,9 +261,6 @@ class MessageBroker(service.Service):
         if self.push_manager:
             self.push_manager.mark_user_online(userid)
 
-        # user has logged in
-        self.dht.user_login(userid)
-
         # broadcast presence
         self.broadcast_presence(userid, c2s.UserPresence.EVENT_ONLINE)
 
@@ -347,8 +279,6 @@ class MessageBroker(service.Service):
         try:
             # end user storage
             self.storage.stop(userid)
-            # user has logged out
-            self.dht.user_logout(userid)
             try:
                 # remove callbacks
                 del self._callbacks[userid]
@@ -569,3 +499,33 @@ class MessageBroker(service.Service):
                 self.storage.delete(sender, msgid)
 
         return res
+
+    def lookup_users(self, users):
+        '''Lookup users locally or remotely as needed.'''
+        lookup = []
+        local_users = []
+
+        for u in users:
+            data = self.usercache.get_user_data(u)
+            if data:
+                local_users.append(data)
+                # generic userid found in cache but not online, try remote lookup
+                if len(u) == utils.USERID_LENGTH and not self.user_online(u):
+                    lookup.append(u)
+            else:
+                if self.user_online(u):
+                    # user is online but didn't set any fields, put a dummy entry
+                    local_users.append({'userid' : u})
+                else:
+                    # remote lookup
+                    lookup.append(u)
+
+
+        """
+        if len(lookup) > 0:
+            # TODO remote lookup
+            return defer.Deferred()
+        else:
+            return local_users
+        """
+        return local_users

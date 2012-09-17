@@ -21,7 +21,7 @@
 
 from twisted.internet.protocol import ServerFactory, connectionDone
 from twisted.internet.task import LoopingCall
-from twisted.internet import reactor, protocol
+from twisted.internet import reactor, protocol, defer
 
 import time
 from kontalklib import txprotobuf
@@ -56,6 +56,24 @@ class S2SMessageServerProtocol(InternalServerProtocol):
         # TODO
         pass
 
+
+class S2SRequestServerProtocol(txprotobuf.DatagramProtocol):
+    '''TODO this class should implement GPG signing/verification transparently.'''
+
+    def __init__(self, config):
+        txprotobuf.DatagramProtocol.__init__(self, s2s)
+
+    def boxReceived(self, addr, data, fingerprint, tx_id = None):
+        # optional reply
+        r = None
+        name = data.__class__.__name__
+        print "box received from %s" % (fingerprint, ), data
+
+        if name == 'UserPresence':
+            self.service.user_presence(str(data.user_id), data.event, data.status_message)
+
+        if r:
+            self.sendBox(addr, r, tx_id)
 
 class C2SServerProtocol(InternalServerProtocol):
     pinger = None
@@ -189,7 +207,7 @@ class C2SServerProtocol(InternalServerProtocol):
         elif name == 'UserLookupRequest':
             if self.service.is_logged():
                 # lookup can delay operations by a long time, so defer it
-                def lookup_complete(found, tx_id):
+                def lookup_complete(found, tx_id, return_value = False):
                     r = c2s.UserLookupResponse()
                     for u in found:
                         e = r.entry.add()
@@ -200,10 +218,16 @@ class C2SServerProtocol(InternalServerProtocol):
                             e.timestamp = u['timestamp']
                         if 'timediff' in u:
                             e.timediff = u['timediff']
-                    self.sendBox(r, tx_id)
+                    if return_value:
+                        return r
+                    else:
+                        self.sendBox(r, tx_id)
 
                 found = self.service.lookup_users(str(tx_id), [str(x) for x in data.user_id])
-                found.addCallback(lookup_complete, str(tx_id))
+                if isinstance(found, defer.Deferred):
+                    found.addCallback(lookup_complete, str(tx_id))
+                else:
+                    r = lookup_complete(found, str(tx_id), True)
 
         elif name == 'ServerInfoRequest':
             r = c2s.ServerInfoResponse()
