@@ -1,4 +1,3 @@
-[ ] s2s communication: use Deferred based on tx_id
 [ ] usercache expiration (restore from revision history)
 [ ] channels.py/incoming/a.length: what if file is not found?
 [ ] validations.code should be UNIQUE - handle this also in server code
@@ -6,6 +5,7 @@
 [ ] serverinfo: server and network status URLs
 [ ] initscript won't work because of GNUPG_HOME set to root's home (or worse: filesystem root)
 [ ] internally merge multiple receipts for the same sender/rcpt pair (on login or scheduled)
+[x] s2s communication: use Deferred based on tx_id
 [x] timestamp on attachments (so we can purge old ones)
 [x] message expiration: expire old or orphaned messages
 [x] clean messages table (delete messages for non-existant users)

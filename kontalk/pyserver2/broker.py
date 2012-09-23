@@ -540,8 +540,8 @@ class MessageBroker(service.Service):
                 duser.callback(setup)
 
             def _error(result, local_users, deferred):
-                # TODO handle errors
                 log.debug("error in lookup: %s / %s / %s" % (result, local_users, deferred))
+                deferred.callback(local_users)
 
             d = self.network.lookup_broadcast(lookup)
             d.addCallback(_lookup, local_users, duser)
