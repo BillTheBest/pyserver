@@ -368,8 +368,11 @@ class C2SChannel:
         a.need_ack = (data['need_ack'] != broker.MSG_ACK_NONE)
         if 'filename' in data['headers']:
             a.url = self.config['fileserver']['download_url'] % data['headers']['filename']
-            (filename, _mime, _md5sum) = self.broker.storage.get_extra(data['headers']['filename'], self.userid)
-            a.length = os.path.getsize(filename)
+            try:
+                (filename, _mime, _md5sum) = self.broker.storage.get_extra(data['headers']['filename'], self.userid)
+                a.length = os.path.getsize(filename)
+            except:
+                log.warn("attachment not found, unable to send length out")
         self.protocol.sendBox(a)
 
     @protoservice
