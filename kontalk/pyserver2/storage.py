@@ -75,26 +75,6 @@ class MessageStorage:
         '''Purges old validation entries.'''
         pass
 
-    def get_timestamp(self, uid):
-        '''Retrieves the timestamp of a user/mailbox.'''
-        pass
-
-    def touch_user(self, uid):
-        '''Updates user last seen time to now.'''
-        pass
-
-    def update_user(self, uid, fields):
-        '''Updates fields of the user status table.'''
-        pass
-
-    def get_user_stat(self, uid):
-        '''Retrieves user stat data.'''
-        pass
-
-    def purge_users(self):
-        '''Purges old user entries.'''
-        pass
-
 
 class PersistentDictStorage(MessageStorage):
     '''PersistentDict-based message storage.
@@ -381,35 +361,3 @@ class MySQLStorage(MessageStorage):
     def purge_validations(self):
         '''Purges old validation entries.'''
         return self.valdb.purge_expired()
-
-    ''' TODO all these go to DHT '''
-
-    """
-    def get_timestamp(self, uid):
-        '''Retrieves the timestamp of a user/mailbox.'''
-        dd = self.userdb.get(uid, False)
-        return long(time.mktime(dd['timestamp'].timetuple())) if dd else None
-
-    def touch_user(self, uid):
-        '''Updates user last seen time to now.'''
-        if len(uid) == utils.USERID_LENGTH_RESOURCE:
-            self.userdb.update(uid)
-
-    def update_user(self, uid, fields):
-        '''Updates fields of the user status table.'''
-        # TODO optimize access to database
-        if len(uid) == utils.USERID_LENGTH_RESOURCE:
-            self.userdb.update(uid, None, **fields)
-
-    def get_user_stat(self, uid):
-        '''Retrieves user stat data.'''
-        # TODO cached access
-        dd = self.userdb.get(uid, False)
-        if dd:
-            dd['timestamp'] = long(time.mktime(dd['timestamp'].timetuple()))
-        return dd
-
-    def purge_users(self):
-        '''Purges old user entries.'''
-        return self.userdb.purge_old_entries()
-    """

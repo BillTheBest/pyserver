@@ -1,17 +1,10 @@
-[ ] usercache expiration (restore from revision history)
 [ ] validations.code should be UNIQUE - handle this also in server code
 [ ] send error receipts for expired messages
+[ ] group multiple messages in one single pack
 [ ] serverinfo: server and network status URLs
 [ ] initscript won't work because of GNUPG_HOME set to root's home (or worse: filesystem root)
 [ ] internally merge multiple receipts for the same sender/rcpt pair (on login or scheduled)
-[x] channels.py/incoming/a.length: what if file is not found?
-[x] s2s communication: use Deferred based on tx_id
-[x] timestamp on attachments (so we can purge old ones)
-[x] message expiration: expire old or orphaned messages
-[x] clean messages table (delete messages for non-existant users)
-[x] reject messages to unknown users? (usercache must be always valid)
-[x] still problems when posting a file more than once (first: error, next: success - file goes wrong)
-[x] table indexes
+
 
 -- scheduled --
 [ ] multithread: c2s/s2s

@@ -139,7 +139,7 @@ class MessageBroker(service.Service):
 
     def _purge_usercache(self):
         #log.debug("purging usercache")
-        self.storage.purge_users()
+        self.usercache.purge_users()
 
     def _purge_messages(self):
         #log.debug("purging messages")
