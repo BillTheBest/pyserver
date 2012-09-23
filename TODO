@@ -1,6 +1,5 @@
 [ ] validations.code should be UNIQUE - handle this also in server code
 [ ] send error receipts for expired messages
-[ ] group multiple messages into one single pack
 [ ] async write messages to database only when needed (ie when user is offline or doesn't ack in due time)
 [ ] serverinfo: server and network status URLs
 [ ] initscript won't work because of GNUPG_HOME set to root's home (or worse: filesystem root)
