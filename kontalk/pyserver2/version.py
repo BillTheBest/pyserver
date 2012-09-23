@@ -28,5 +28,10 @@ AUTHORS = (
     },
 )
 
+'''Supported s2s protocol'''
 SERVER_PROTOCOL = 1
-CLIENT_PROTOCOL = 3
+'''Supported c2s protocol'''
+CLIENT_PROTOCOL = 4
+'''Default c2s protocol if not explicitly declared from client'''
+DEFAULT_CLIENT_PROTOCOL = 3
+

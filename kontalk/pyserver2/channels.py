@@ -40,6 +40,8 @@ class C2SChannel:
 
     userid = None
     zombie = False
+    # default protocol is legacy
+    client_protocol = version.DEFAULT_CLIENT_PROTOCOL
 
     def __init__(self, protocol, broker, config):
         self.protocol = protocol
@@ -66,7 +68,7 @@ class C2SChannel:
         return self.userid != None
 
     @protoservice
-    def authenticate(self, tx_id, auth_token):
+    def authenticate(self, tx_id, auth_token, client_protocol):
         '''Client tried to authenticate.'''
         #log.debug("[%s] authenticating token: %s" % (tx_id, auth_token))
         try:
@@ -79,6 +81,8 @@ class C2SChannel:
 
         if userid:
             log.debug("[%s] user %s logged in." % (tx_id, userid))
+            if client_protocol:
+                self.client_protocol = client_protocol
             self.userid = userid
             self.broker.register_user_consumer(userid, self)
             return True
@@ -350,11 +354,8 @@ class C2SChannel:
         else:
             return False
 
-    @protoservice
-    def incoming(self, data, unused = None):
-        '''Internal queue worker.'''
+    def _incoming_box(self, data):
         # TODO check for missing keys
-        #log.debug("incoming message: %s" % data)
         # TODO avoid using c2s directly; instead create a method in C2SServerProtocol
         a = c2s.NewMessage()
         a.message_id = data['messageid']
@@ -373,7 +374,14 @@ class C2SChannel:
                 a.length = os.path.getsize(filename)
             except:
                 log.warn("attachment not found, unable to send length out")
-        self.protocol.sendBox(a)
+        return a
+
+    @protoservice
+    def incoming(self, data, unused = None):
+        '''Internal queue worker.'''
+        #log.debug("incoming message: %s" % data)
+        a = self._incoming_box(data)
+        return self.protocol.sendBox(a)
 
     @protoservice
     def conflict(self):
@@ -394,6 +402,10 @@ class C2SChannel:
         '''Called on ping timeout.'''
         log.debug("ping timeout for %s" % self.userid)
         self.protocol.transport.loseConnection()
+
+    @protoservice
+    def get_client_protocol(self):
+        return self.client_protocol
 
 
 class S2SRequestChannel:

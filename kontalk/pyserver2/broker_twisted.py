@@ -190,7 +190,7 @@ class C2SServerProtocol(InternalServerProtocol):
         name = data.__class__.__name__
         if name == 'AuthenticateRequest':
             r = c2s.AuthenticateResponse()
-            r.valid = self.service.authenticate(str(tx_id), data.token)
+            r.valid = self.service.authenticate(str(tx_id), data.token, data.client_protocol)
 
         elif name == 'MessagePostRequest':
             if self.service.is_logged():

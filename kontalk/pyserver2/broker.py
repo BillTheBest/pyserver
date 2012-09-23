@@ -250,7 +250,7 @@ class MessageBroker(service.Service):
         else:
             self._consumers[uhash] = {}
 
-        self._callbacks[userid] = { 'conflict' : worker.conflict }
+        self._callbacks[userid] = { 'conflict' : worker.conflict, 'client_protocol' : worker.get_client_protocol }
         self._consumers[uhash][resource] = ResizableDispatchQueue(worker.incoming)
         self._consumers[uhash][resource].start(50)
 
@@ -405,7 +405,7 @@ class MessageBroker(service.Service):
         stored = dict(self.storage.load(uid))
         if stored:
             # requeue messages
-            for msgid, msg in stored.iteritems():
+            for msg in stored.itervalues():
                 self._usermsg_worker(msg)
 
     def publish_user(self, sender, userid, headers = None, msg = None, need_ack = MSG_ACK_NONE):
