@@ -40,10 +40,10 @@ PING_DELAY = 15
 class InternalServerProtocol(txprotobuf.Protocol):
 
     def connectionMade(self):
-        self.service.connected()
+        return self.service.connected()
 
     def connectionLost(self, reason=connectionDone):
-        self.service.disconnected()
+        return self.service.disconnected()
 
 
 class S2SMessageServerProtocol(InternalServerProtocol):
@@ -143,7 +143,18 @@ class C2SServerProtocol(InternalServerProtocol):
             self.idler.reset = reset
 
     def connectionMade(self):
-        InternalServerProtocol.connectionMade(self)
+        """
+        TODO this breaks compatibility with Android client < 16
+        info = InternalServerProtocol.connectionMade(self)
+        # send serverinfo
+        r = c2s.ServerInfo()
+        r.version = info['version']
+        r.client_protocol = info['client-protocol']
+        r.fingerprint = info['fingerprint']
+        r.network = info['network']
+        r.supports.extend(info['supports'])
+        self.sendBox(r)
+        """
         # start idler
         self.idler.start(IDLE_DELAY, False)
 
@@ -188,9 +199,14 @@ class C2SServerProtocol(InternalServerProtocol):
         # optional reply
         r = None
         name = data.__class__.__name__
-        if name == 'AuthenticateRequest':
+
+        if name == 'LoginRequest':
+            r = c2s.LoginResponse()
+            r.status = self.service.login(str(tx_id), data.token, data.client_protocol, data.client_version, data.flags)
+
+        elif name == 'AuthenticateRequest':
             r = c2s.AuthenticateResponse()
-            r.valid = self.service.authenticate(str(tx_id), data.token, data.client_protocol)
+            r.valid = self.service.authenticate(str(tx_id), data.token)
 
         elif name == 'MessagePostRequest':
             if self.service.is_logged():
@@ -289,6 +305,9 @@ class C2SServerProtocol(InternalServerProtocol):
         elif name == 'UserInfoUpdateRequest':
             if self.service.is_logged():
                 r = c2s.UserInfoUpdateResponse()
+                flags = None
+                if data.HasField('flags'):
+                    flags = data.flags
                 if data.HasField('status_message'):
                     status_msg = str(data.status_message)
                 else:
@@ -298,7 +317,7 @@ class C2SServerProtocol(InternalServerProtocol):
                 else:
                     google_regid = None
 
-                r.status = self.service.user_update(status_msg, google_regid)
+                r.status = self.service.user_update(flags, status_msg, google_regid)
 
         elif name == 'UserPresenceSubscribeRequest':
             if self.service.is_logged():

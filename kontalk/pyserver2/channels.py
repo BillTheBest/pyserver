@@ -52,6 +52,7 @@ class C2SChannel:
     def connected(self):
         addr = self.protocol.transport.getPeer()
         log.debug("new client connection from %s" % addr.host)
+        return self.serverinfo()
 
     @protoservice
     def disconnected(self):
@@ -68,9 +69,16 @@ class C2SChannel:
         return self.userid != None
 
     @protoservice
-    def authenticate(self, tx_id, auth_token, client_protocol):
-        '''Client tried to authenticate.'''
-        #log.debug("[%s] authenticating token: %s" % (tx_id, auth_token))
+    def login(self, tx_id, auth_token, client_protocol = None, client_version = None, flags = 0):
+        '''Client is trying to login.'''
+        # check protocol version
+        if client_protocol < version.CLIENT_PROTOCOL:
+            return c2s.LoginResponse.STATUS_PROTOCOL_MISMATCH
+
+        if client_protocol:
+            self.client_protocol = client_protocol
+        self.flags = flags
+
         try:
             userid = token.verify_user_token(auth_token, self.broker.keyring, str(self.config['server']['fingerprint']))
         except:
@@ -81,8 +89,27 @@ class C2SChannel:
 
         if userid:
             log.debug("[%s] user %s logged in." % (tx_id, userid))
-            if client_protocol:
-                self.client_protocol = client_protocol
+            self.userid = userid
+            # TODO consider flags
+            self.broker.register_user_consumer(userid, self)
+            return c2s.LoginResponse.STATUS_LOGGED_IN
+
+        return c2s.LoginResponse.STATUS_AUTH_FAILED
+
+    @protoservice
+    def authenticate(self, tx_id, auth_token):
+        '''Client tried to authenticate.'''
+        log.debug("[%s] deprecated authentication mode" % (tx_id, ))
+        try:
+            userid = token.verify_user_token(auth_token, self.broker.keyring, str(self.config['server']['fingerprint']))
+        except:
+            import traceback
+            traceback.print_exc()
+            log.debug("[%s] token verification failed: %s" % (tx_id, auth_token))
+            userid = None
+
+        if userid:
+            log.debug("[%s] user %s logged in." % (tx_id, userid))
             self.userid = userid
             self.broker.register_user_consumer(userid, self)
             return True
@@ -90,13 +117,13 @@ class C2SChannel:
         return False
 
     @protoservice
-    def serverinfo(self, tx_id, client_version = None, client_protocol = None):
-        # TODO shall we check client protocol revision compatibility?
+    def serverinfo(self, tx_id = None, client_version = None, client_protocol = None):
         info = {
             'version' : '%s %s' % (version.PACKAGE, version.VERSION),
             'client-protocol' : version.CLIENT_PROTOCOL,
             'server-protocol' : version.SERVER_PROTOCOL,
             'fingerprint' : self.config['server']['fingerprint'],
+            'network' : self.config['server']['network'],
             'supports' : []
         }
 
@@ -221,7 +248,7 @@ class C2SChannel:
             return _stat_found(dstat, False)
 
     @protoservice
-    def user_update(self, status_msg = None, google_regid = None):
+    def user_update(self, flags = None, status_msg = None, google_regid = None):
         fields = {}
         if status_msg != None:
             # status message too long
