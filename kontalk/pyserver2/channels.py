@@ -38,6 +38,7 @@ def protoservice(func):
 class C2SChannel:
     '''Client channel implementation.'''
 
+    flags = 0
     userid = None
     zombie = False
     # default protocol is legacy
@@ -60,7 +61,7 @@ class C2SChannel:
             addr = self.protocol.transport.getPeer()
             log.debug("user %s (%s) disconnected." % (self.userid, addr.host))
             if not self.zombie:
-                self.broker.unregister_user_consumer(self.userid)
+                self.broker.unregister_user_consumer(self.userid, self.can_broadcast_presence())
         else:
             log.debug("disconnected.")
 
@@ -90,8 +91,7 @@ class C2SChannel:
         if userid:
             log.debug("[%s] user %s logged in." % (tx_id, userid))
             self.userid = userid
-            # TODO consider flags
-            self.broker.register_user_consumer(userid, self)
+            self.broker.register_user_consumer(userid, self, self.can_broadcast_presence())
             return c2s.LoginResponse.STATUS_LOGGED_IN
 
         return c2s.LoginResponse.STATUS_AUTH_FAILED
@@ -250,6 +250,10 @@ class C2SChannel:
     @protoservice
     def user_update(self, flags = None, status_msg = None, google_regid = None):
         fields = {}
+
+        if flags != None:
+            fields['flags'] = flags
+
         if status_msg != None:
             # status message too long
             if len(status_msg) > utils.STATUS_MESSAGE_MAX_LENGTH:
@@ -263,12 +267,15 @@ class C2SChannel:
         try:
             self.broker.usercache.set_user_data(self.userid, fields)
             if 'status' in fields:
-                self.broker.broadcast_presence(self.userid, c2s.UserPresence.EVENT_STATUS_CHANGED, fields['status'])
+                self.broker.broadcast_presence(self.userid, c2s.UserPresence.EVENT_STATUS_CHANGED, fields['status'], self.can_broadcast_presence())
             return c2s.UserInfoUpdateResponse.STATUS_SUCCESS
         except:
             import traceback
             traceback.print_exc()
             return c2s.UserInfoUpdateResponse.STATUS_ERROR
+
+    def can_broadcast_presence(self):
+        return self.flags & c2s.FLAG_HIDE_PRESENCE == 0
 
     @protoservice
     def user_presence_subscribe(self, userid, events):

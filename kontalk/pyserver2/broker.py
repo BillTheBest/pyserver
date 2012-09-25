@@ -238,7 +238,7 @@ class MessageBroker(service.Service):
         else:
             log.warn("warning: unknown userid format %s" % userid)
 
-    def register_user_consumer(self, userid, worker):
+    def register_user_consumer(self, userid, worker, broadcast_presence = True):
         uhash, resource = utils.split_userid(userid)
 
         if uhash in self._consumers:
@@ -259,7 +259,7 @@ class MessageBroker(service.Service):
             self.push_manager.mark_user_online(userid)
 
         # broadcast presence
-        self.broadcast_presence(userid, c2s.UserPresence.EVENT_ONLINE)
+        self.broadcast_presence(userid, c2s.UserPresence.EVENT_ONLINE, None, not broadcast_presence)
 
         """
         WARNING these two need to be called in this order!!!
@@ -270,7 +270,7 @@ class MessageBroker(service.Service):
         # load previously stored messages (for generic) and requeue them
         self._reload_usermsg_queue(uhash)
 
-    def unregister_user_consumer(self, userid):
+    def unregister_user_consumer(self, userid, broadcast_presence = True):
         uhash, resource = utils.split_userid(userid)
 
         try:
@@ -295,29 +295,31 @@ class MessageBroker(service.Service):
         # remove presence subscriptions
         self.unsubscribe_user_presence(userid)
         # broadcast presence
-        self.broadcast_presence(userid, c2s.UserPresence.EVENT_OFFLINE)
+        self.broadcast_presence(userid, c2s.UserPresence.EVENT_OFFLINE, None, not broadcast_presence)
 
     def message_id(self):
         return utils.rand_str(30)
 
-    def broadcast_presence(self, userid, event, status = None):
-        def _broadcast(self, by_userid, to_userid, event, status):
-            #log.debug("broadcasting event %d by user %s to user %s" % (event, by_userid, to_userid))
-            m = c2s.UserPresence()
-            m.event = event
-            if status != None:
-                m.status_message = status
-            self.publish_user(by_userid, to_userid, { 'mime' : MIME_PRESENCE, 'flags' : [] }, m.SerializeToString(), MSG_ACK_NONE)
+    def broadcast_presence(self, userid, event, status = None, network_only = False):
+        log.debug("broadcasting event %d by user %s to network (network_only=%s)" % (event, userid, network_only, ))
+        if not network_only:
+            def _broadcast(self, by_userid, to_userid, event, status):
+                #log.debug("broadcasting event %d by user %s to user %s" % (event, by_userid, to_userid))
+                m = c2s.UserPresence()
+                m.event = event
+                if status != None:
+                    m.status_message = status
+                self.publish_user(by_userid, to_userid, { 'mime' : MIME_PRESENCE, 'flags' : [] }, m.SerializeToString(), MSG_ACK_NONE)
 
-        subs_generic, subs_specific = self.get_presence_subscribers(userid)
-        if subs_generic:
-            for sub, mask in subs_generic.iteritems():
-                if mask & USER_EVENT_MASKS[event]:
-                    _broadcast(self, userid, sub, event, status)
-        if subs_specific:
-            for sub, mask in subs_specific.iteritems():
-                if mask & USER_EVENT_MASKS[event]:
-                    _broadcast(self, userid, sub, event, status)
+            subs_generic, subs_specific = self.get_presence_subscribers(userid)
+            if subs_generic:
+                for sub, mask in subs_generic.iteritems():
+                    if mask & USER_EVENT_MASKS[event]:
+                        _broadcast(self, userid, sub, event, status)
+            if subs_specific:
+                for sub, mask in subs_specific.iteritems():
+                    if mask & USER_EVENT_MASKS[event]:
+                        _broadcast(self, userid, sub, event, status)
 
         # broadcast to servers
         """
