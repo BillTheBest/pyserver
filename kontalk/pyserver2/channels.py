@@ -198,7 +198,7 @@ class C2SChannel:
 
         def _stat_found(found, deferred = True):
             end = time.time()
-            log.debug("lookup of %d users took %.2f seconds (found %d users)" % (len(users), end-start, len(found)))
+            #log.debug("lookup of %d users took %.2f seconds (found %d users)" % (len(users), end-start, len(found)))
 
             ret = {}
             for stat in found:
@@ -233,7 +233,7 @@ class C2SChannel:
                         if 'status' in stat and stat['status']:
                             ret[userid]['status'] = stat['status']
 
-            log.debug("RESULT/%s" % (ret,))
+            #log.debug("RESULT/%s" % (ret,))
             ret = ret.values()
             if deferred:
                 d.callback(ret)
