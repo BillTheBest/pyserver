@@ -301,7 +301,7 @@ class MessageBroker(service.Service):
         return utils.rand_str(30)
 
     def broadcast_presence(self, userid, event, status = None, network_only = False):
-        log.debug("broadcasting event %d by user %s to network (network_only=%s)" % (event, userid, network_only, ))
+        #log.debug("broadcasting event %d by user %s to network (network_only=%s)" % (event, userid, network_only, ))
         if not network_only:
             def _broadcast(self, by_userid, to_userid, event, status):
                 #log.debug("broadcasting event %d by user %s to user %s" % (event, by_userid, to_userid))

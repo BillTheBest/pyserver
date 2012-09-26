@@ -267,7 +267,7 @@ class C2SChannel:
         try:
             self.broker.usercache.set_user_data(self.userid, fields)
             if 'status' in fields:
-                self.broker.broadcast_presence(self.userid, c2s.UserPresence.EVENT_STATUS_CHANGED, fields['status'], self.can_broadcast_presence())
+                self.broker.broadcast_presence(self.userid, c2s.UserPresence.EVENT_STATUS_CHANGED, fields['status'], not self.can_broadcast_presence())
             return c2s.UserInfoUpdateResponse.STATUS_SUCCESS
         except:
             import traceback
