@@ -143,6 +143,7 @@ class C2SServerProtocol(InternalServerProtocol):
             self.idler.reset = reset
 
     def connectionMade(self):
+        InternalServerProtocol.connectionMade(self)
         """
         TODO this breaks compatibility with Android client < 16
         info = InternalServerProtocol.connectionMade(self)
