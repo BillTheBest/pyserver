@@ -404,10 +404,10 @@ class MessageBroker(service.Service):
             return generic_online
 
     def _reload_usermsg_queue(self, uid):
-        stored = dict(self.storage.load(uid))
+        stored = self.storage.load(uid)
         if stored:
             # requeue messages
-            for msg in stored.itervalues():
+            for msg in stored:
                 self._usermsg_worker(msg)
 
     def publish_user(self, sender, userid, headers = None, msg = None, need_ack = MSG_ACK_NONE):
@@ -457,7 +457,15 @@ class MessageBroker(service.Service):
 
         for msgid in msgid_list:
             try:
-                msg = db[msgid]
+                # search message in list
+                msg = None
+                for entry in db:
+                    if entry['messageid'] == msgid:
+                        msg = entry
+                        break
+                if not msg:
+                    raise KeyError
+
                 if msg['need_ack'] == MSG_ACK_BOUNCE:
                     #log.debug("found message to be acknowledged - %s" % msgid)
 

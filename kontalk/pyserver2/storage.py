@@ -252,13 +252,15 @@ class MySQLStorage(MessageStorage):
 
     def load(self, uid):
         '''Loads a storage for a userid.'''
-        msgdict = {}
 
         # special case: null uid -- retrieve message count by userid
         if not uid:
             msglist = self.msgdb.need_notification()
+            msgdict = {}
             for msg in msglist:
                 msgdict[msg['recipient']] = msg['num']
+            return msgdict
+        # retrieve messages ordered by timestamp
         else:
             try:
                 msglist = self._cache[uid]
@@ -266,10 +268,7 @@ class MySQLStorage(MessageStorage):
                 msglist = self.msgdb.incoming(uid, True)
                 self._cache[uid] = msglist
 
-            for msg in msglist:
-                msgdict[msg['id']] = self._format_msg(msg)
-
-        return msgdict
+            return [self._format_msg(msg) for msg in msglist]
 
     def store(self, uid, msg, force = False):
         '''Used to persist a message.'''
