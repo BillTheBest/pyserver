@@ -52,8 +52,8 @@ class WebMonitor(rend.Page, service.Service):
     def renderHTTP(self, ctx):
         request = inevow.IRequest(ctx)
         username, password = request.getUser(), request.getPassword()
-        if (username, password) != (self.config['monitor']['username'], self.config['monitor']['password']):
-            request.setHeader('WWW-Authenticate', 'Basic realm="'+self.config['server']['network']+'"')
+        if (username, password) != (str(self.config['monitor']['username']), str(self.config['monitor']['password'])):
+            request.setHeader('WWW-Authenticate', 'Basic realm="'+str(self.config['server']['network'])+'"')
             request.setResponseCode(http.UNAUTHORIZED)
             return "Authentication required."
 
