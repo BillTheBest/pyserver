@@ -86,6 +86,8 @@ class WebMonitor(rend.Page, service.Service):
         self.db = self.broker.db
 
         # create http service
+        self.putChild('favicon.ico', static.File('monitor/favicon.ico'))
+
         factory = appserver.NevowSite(self)
         fs_service = internet.TCPServer(port=self.config['server']['monitor.bind'][1],
             factory=factory, interface=self.config['server']['monitor.bind'][0])
