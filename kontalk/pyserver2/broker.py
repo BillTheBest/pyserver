@@ -18,7 +18,7 @@
  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 
-import os, socket
+import os, socket, time
 from datetime import datetime
 from Queue import Queue
 import pickle, shelve
@@ -75,9 +75,20 @@ class MessageBroker(service.Service):
         self.setServiceParent(application)
         self.config = config
         self.fingerprint = str(config['server']['fingerprint'])
+        self.ts_start = time.time()
 
     def print_version(self):
         log.info("%s version %s" % (version.NAME, version.VERSION))
+
+    def uptime(self):
+        return time.time() - self.ts_start
+
+    def users_cached_count(self):
+        return self.usercache.unique_users()
+
+    def users_online_count(self, local=True):
+        # TODO network count
+        return len(self._callbacks)
 
     def startService(self):
         service.Service.startService(self)
@@ -421,6 +432,7 @@ class MessageBroker(service.Service):
 
         if self.config['broker']['reject_unknown_recipients']:
             # check if user exists
+            # TODO this check should be done over the whole network (?)
             if not self.storage.get_user_stat(userid) and not self.user_online(userid):
                 log.warn("user %s not found" % userid)
                 return c2s.MessagePostResponse.MessageSent.STATUS_USER_NOTFOUND
@@ -437,8 +449,8 @@ class MessageBroker(service.Service):
             'payload' : msg
         }
 
-        # process message immediately
-        self._usermsg_worker(outmsg)
+        # process message on the next iteration
+        reactor.callWhenRunning(self._usermsg_worker, outmsg)
 
         return msg_id
 

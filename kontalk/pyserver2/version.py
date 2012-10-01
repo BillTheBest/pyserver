@@ -20,7 +20,7 @@
 
 NAME = "Kontalk Pyserver Daemon"
 PACKAGE = "kontalk-pyserver"
-VERSION = "2.5"
+VERSION = "2.6"
 AUTHORS = (
     {
         "name": "Daniele Ricci",

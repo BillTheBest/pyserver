@@ -31,6 +31,10 @@ class Usercache:
         '''Sets a datasource after-init.'''
         pass
 
+    def unique_users(self):
+        '''Returns the number or unique users cached locally.'''
+        pass
+
     def touch_user(self, userid):
         '''Updates user last seen time to now.'''
         pass
@@ -58,6 +62,9 @@ class MySQLUsercache(Usercache):
     def set_datasource(self, ds):
         self._db = ds
         self._update_ds()
+
+    def unique_users(self):
+        return self.userdb.unique_users_count()
 
     def _update_ds(self):
         if self._db:

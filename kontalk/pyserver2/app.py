@@ -26,6 +26,7 @@ from twisted.application import internet, service
 
 from broker import MessageBroker
 from fileserver import Fileserver
+from monitor import WebMonitor
 
 
 class PyserverApp:
@@ -50,5 +51,9 @@ class PyserverApp:
         # fileserver service
         if self.config['server']['fileserver.enabled']:
             self.fileserver = Fileserver(self.application, self.config, self.broker)
+
+        # monitor service
+        if self.config['server']['monitor.enabled']:
+            self.monitor = WebMonitor(self.application, self.config, self.broker)
 
         return self.application

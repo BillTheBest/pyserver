@@ -1,0 +1,119 @@
+<html xmlns:nevow="http://nevow.com/ns/nevow/0.1">
+<head>
+<title nevow:data="title" nevow:render="data" />
+
+<script type="text/javascript">
+<!--
+
+function countup(id) {
+    var span = document.getElementById(id);
+    var text = span.textContent;
+    var units = text.split(':');
+    for (var i = 0; i < units.length; i++) {
+        units[i] = units[i].replace(/^[0]+/g,"");
+        if (!units[i].length)
+            units[i] = 0;
+    }
+    var hours = parseInt(units[0]);
+    var mins = parseInt(units[1]);
+    var secs = parseInt(units[2]);
+
+    secs++;
+    if (secs >= 60) {
+        secs = 0;
+        mins++;
+    }
+    if (mins >= 60) {
+        mins = 0;
+        hours++;
+    }
+
+    span.textContent = ('0' + hours).slice(-2) + ':' +
+        ('0' + mins).slice(-2) + ':' + ('0' + secs).slice(-2);
+    setTimeout("countup('"+id+"')", 1000);
+}
+
+// -->
+</script>
+
+<style type="text/css">
+
+#content {
+    width: 380px;
+}
+
+#header {
+    width: 300px;
+    font-size: large;
+    height: 64px;
+    padding: 5px 5px 5px 70px;
+    background: url('images/logo.png') no-repeat 5px 5px;
+    border: 2px solid #0065ad;
+}
+
+table.metrics {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+table.metrics td {
+    border: 2px solid #0065ad;
+    padding: 4px;
+}
+
+table.metrics td.metrics-name {
+}
+
+table.metrics td.metrics-value {
+    font-weight: bold;
+    text-align: right;
+}
+
+</style>
+
+</head>
+
+<body onload="setTimeout('countup(\'uptime\')', 500)">
+
+<div id="content">
+
+<h1 id="header">
+Kontalk server
+<span style="font-weight: bold; color: green">RUNNING</span><br/>
+uptime <span nevow:data="uptime" nevow:render="data" id="uptime"/>
+</h1>
+
+<table class="metrics">
+
+    <tr>
+    <td class="metrics-name">Local <span style="color: green; text-transform: uppercase">online</span> users</td>
+    <td class="metrics-value"><span nevow:data="local_online" nevow:render="data" id="local_online"/></td>
+    </tr>
+
+    <tr>
+    <td class="metrics-name">Local <span style="color: #FFB300; text-transform: uppercase">cached</span> users</td>
+    <td class="metrics-value"><span nevow:data="local_users" nevow:render="data" id="local_users"/></td>
+    </tr>
+
+    <tr>
+    <td class="metrics-name">Local week active</td>
+    <td class="metrics-value"><span nevow:data="local_last_week" nevow:render="data"/></td>
+    </tr>
+
+    <tr>
+    <td class="metrics-name">Network cached users</td>
+    <td class="metrics-value">n/a</td>
+    </tr>
+
+    <tr>
+    <td class="metrics-name">Network online users</td>
+    <td class="metrics-value">n/a</td>
+    </tr>
+
+</table>
+
+</div>
+
+</body>
+
+</html>
