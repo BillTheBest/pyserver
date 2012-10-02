@@ -24,12 +24,12 @@ import kontalklib.logging as log
 from twisted.application import internet, service
 from twisted.python import failure
 from twisted.internet import defer, task
+from twisted.web import resource
 
 try:
     from twisted.web import http
 except ImportError:
     from twisted.protocols import http
-
 
 from nevow import appserver, rend, loaders, static, inevow
 
@@ -85,9 +85,10 @@ class WebMonitor(rend.Page, service.Service):
         self.storage = self.broker.storage
         self.db = self.broker.db
 
-        # create http service
+        # some static resources
         self.putChild('favicon.ico', static.File('monitor/favicon.ico'))
 
+        # create http service
         factory = appserver.NevowSite(self)
         fs_service = internet.TCPServer(port=self.config['server']['monitor.bind'][1],
             factory=factory, interface=self.config['server']['monitor.bind'][0])

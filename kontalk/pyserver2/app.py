@@ -27,6 +27,7 @@ from twisted.application import internet, service
 from broker import MessageBroker
 from fileserver import Fileserver
 from monitor import WebMonitor
+from endpoint import EndpointService
 
 
 class PyserverApp:
@@ -55,5 +56,9 @@ class PyserverApp:
         # monitor service
         if self.config['server']['monitor.enabled']:
             self.monitor = WebMonitor(self.application, self.config, self.broker)
+
+        # endpoint service
+        if self.config['server']['endpoint.enabled']:
+            self.monitor = EndpointService(self.application, self.config, self.broker)
 
         return self.application

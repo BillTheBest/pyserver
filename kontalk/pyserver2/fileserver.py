@@ -26,10 +26,8 @@ import json
 from zope.interface import implements
 
 from twisted.application import internet, service
-from twisted.python import failure
-from twisted.internet import defer, task
-from twisted.web import server, resource, iweb
-from twisted.cred import credentials, checkers, error
+from twisted.internet import task
+from twisted.web import server, resource
 from twisted.cred.portal import IRealm, Portal
 from twisted.web.guard import HTTPAuthSessionWrapper
 from twisted.protocols.basic import FileSender
@@ -38,72 +36,6 @@ from twisted.python.log import err
 import kontalklib.c2s_pb2 as c2s
 from kontalklib import database, token, utils
 import version, storage
-
-
-class IKontalkToken(credentials.ICredentials):
-
-    def checkToken():
-        pass
-
-
-class KontalkToken(object):
-    implements(IKontalkToken)
-
-    def __init__(self, token, config):
-        self.token = token
-        self.config = config
-
-    def checkToken(self, db):
-        #log.debug("checking token %s" % self.token)
-        try:
-            return token.verify_user_token(self.token, database.servers(db), self.config['server']['fingerprint'])
-        except:
-            import traceback
-            traceback.print_exc()
-            log.debug("token verification failed!")
-
-
-class AuthKontalkToken(object):
-    implements(checkers.ICredentialsChecker)
-
-    credentialInterfaces = IKontalkToken,
-
-    def __init__(self, db):
-        self.db = db
-
-    def _cbTokenValid(self, userid):
-        #log.debug("token userid=%s" % userid)
-        if userid:
-            return userid
-        else:
-            return failure.Failure(error.UnauthorizedLogin())
-
-    def requestAvatarId(self, credentials):
-        log.debug("avatarId: %s" % credentials)
-        return defer.maybeDeferred(
-            credentials.checkToken, self.db).addCallback(
-            self._cbTokenValid)
-
-
-class AuthKontalkTokenFactory(object):
-    implements(iweb.ICredentialFactory)
-
-    scheme = 'kontalktoken'
-
-    def __init__(self, config):
-        self.config = config
-
-    def getChallenge(self, request):
-        #log.debug(('getChallenge', request))
-        return {}
-
-    def decode(self, response, request):
-        key, token = response.split('=', 1)
-        #log.debug("got token from request: %s" % token)
-        if key == 'auth':
-            return KontalkToken(token, self.config)
-
-        raise error.LoginFailed('Invalid token')
 
 
 class ServerlistDownload(resource.Resource):
@@ -205,7 +137,7 @@ class FileUpload(resource.Resource):
         # check mime type
         mime = request.getHeader('content-type')
         if mime not in self.config['fileserver']['accept_content']:
-            a.status = c2s.FileUploadResponse.STATUS_UNSUPPORTED
+            a.status = c2s.FileUploadResponse.STATUS_NOTSUPPORTED
         else:
             # check length
             length = request.getHeader('content-length')
@@ -280,6 +212,7 @@ class Fileserver(resource.Resource, service.Service):
             log.debug("fileserver init")
             self.storage = self.broker.storage
             self.db = self.broker.db
+            self.keyring = self.broker.keyring
         else:
             # standalone - print version
             self.print_version()
@@ -287,15 +220,17 @@ class Fileserver(resource.Resource, service.Service):
             self.storage = storage.__dict__[self.config['broker']['storage'][0]](*self.config['broker']['storage'][1:])
             self.db = database.connect_config(self.config)
             self.storage.set_datasource(self.db)
+            self.keyring = keyring.Keyring(database.servers(self.db), str(self.config['server']['fingerprint']))
+
+        credFactory = utils.AuthKontalkTokenFactory(str(self.config['server']['fingerprint']), self.keyring)
 
         # setup upload endpoint
-        portal = Portal(FileUploadRealm(self), [AuthKontalkToken(self.db)])
-        credFactory = AuthKontalkTokenFactory(self.config)
+        portal = Portal(FileUploadRealm(self), [utils.AuthKontalkToken()])
         resource = HTTPAuthSessionWrapper(portal, [credFactory])
         self.putChild('upload', resource)
 
         # setup download endpoint
-        portal = Portal(FileDownloadRealm(self), [AuthKontalkToken(self.db)])
+        portal = Portal(FileDownloadRealm(self), [utils.AuthKontalkToken()])
         resource = HTTPAuthSessionWrapper(portal, [credFactory])
         self.putChild('download', resource)
 
