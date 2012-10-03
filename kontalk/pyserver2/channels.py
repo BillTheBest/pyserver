@@ -411,7 +411,7 @@ class C2SChannel:
         return a
 
     @protoservice
-    def incoming(self, data, unused = None):
+    def incoming(self, data):
         '''Internal queue worker.'''
         #log.debug("incoming message: %s" % data)
         a = self._incoming_box(data)
