@@ -174,6 +174,11 @@ class MessageBroker(service.Service):
                 import traceback
                 traceback.print_exc()
 
+    def _usermbox_worker(self, mbox):
+        '''Processes a bunch of messages to be sent massively to recipients.'''
+        # TODO
+        pass
+
     def _usermsg_worker(self, msg):
         userid = msg['recipient']
         need_ack = msg['need_ack']
@@ -224,7 +229,7 @@ class MessageBroker(service.Service):
             if need_ack:
                 try:
                     #log.debug("storing message %s to disk" % msg['messageid'])
-                    if 'storage' not in msg['storage']:
+                    if 'storage' not in msg:
                         self.storage.store(userid, msg)
                 except:
                     # TODO handle errors
@@ -250,7 +255,7 @@ class MessageBroker(service.Service):
         else:
             log.warn("warning: unknown userid format %s" % userid)
 
-    def register_user_consumer(self, userid, worker, broadcast_presence = True):
+    def register_user_consumer(self, userid, worker, broadcast_presence = True, supports_mailbox = False):
         uhash, resource = utils.split_userid(userid)
 
         if uhash in self._consumers:
@@ -278,9 +283,9 @@ class MessageBroker(service.Service):
         Otherwise bad things happen...
         """
         # load previously stored messages (for specific) and requeue them
-        self._reload_usermsg_queue(userid)
+        self._reload_usermsg_queue(userid, supports_mailbox)
         # load previously stored messages (for generic) and requeue them
-        self._reload_usermsg_queue(uhash)
+        self._reload_usermsg_queue(uhash, supports_mailbox)
 
     def unregister_user_consumer(self, userid, broadcast_presence = True):
         uhash, resource = utils.split_userid(userid)
@@ -415,12 +420,15 @@ class MessageBroker(service.Service):
         else:
             return generic_online
 
-    def _reload_usermsg_queue(self, uid):
+    def _reload_usermsg_queue(self, uid, mbox = True):
+        '''Loads and requeues messages to a users.'''
         stored = self.storage.load(uid)
         if stored:
-            # requeue messages
-            for msg in stored:
-                self._usermsg_worker(msg)
+            if mbox:
+                self._usermbox_worker(stored)
+            else:
+                for msg in stored:
+                    self._usermsg_worker(msg)
 
     def publish_user(self, sender, userid, headers = None, msg = None, need_ack = MSG_ACK_NONE):
         '''Publish a message to a user, either generic or specific.'''
@@ -451,7 +459,8 @@ class MessageBroker(service.Service):
         }
 
         # process message on the next iteration
-        reactor.callWhenRunning(self._usermsg_worker, outmsg)
+        # FIXME is this safe? Check for race conditions
+        reactor.callLater(0, self._usermsg_worker, outmsg)
 
         return msg_id
 
