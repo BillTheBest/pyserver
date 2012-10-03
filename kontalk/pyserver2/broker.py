@@ -224,7 +224,8 @@ class MessageBroker(service.Service):
             if need_ack:
                 try:
                     #log.debug("storing message %s to disk" % msg['messageid'])
-                    self.storage.store(userid, msg)
+                    if 'storage' not in msg['storage']:
+                        self.storage.store(userid, msg)
                 except:
                     # TODO handle errors
                     import traceback

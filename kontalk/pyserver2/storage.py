@@ -225,7 +225,7 @@ class MySQLStorage(MessageStorage):
 
     def _format_msg(self, msg):
         '''Converts a database row from the messages table to a broker message.'''
-        dm = { 'headers' : {} }
+        dm = { 'headers' : {}, 'storage': True }
 
         # message metadata
         dm['messageid'] = msg['id']
