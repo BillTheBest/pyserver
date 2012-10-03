@@ -5,6 +5,10 @@
 [ ] initscript won't work because of GNUPG_HOME set to root's home (or worse: filesystem root)
 [ ] internally merge multiple receipts for the same sender/rcpt pair (on login or scheduled)
 
+-- HTTP endpoint --
+[ ] handle channel timeout
+[ ] merge multiple messages into a single polling response (modifications to broker needed)
+[ ] format incoming messages before sending them to the clients
 
 -- scheduled --
 [ ] multithread: c2s/s2s

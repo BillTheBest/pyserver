@@ -162,6 +162,7 @@ class Endpoint(resource.Resource):
     def _push(self, data, request):
         log.debug("pushing message: %s" % (data, ))
         # TODO multiple messages
+        # TODO format output
         self.render_json(request, (self._format_msg(data), ))
 
     ## Web methods ##
