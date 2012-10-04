@@ -175,9 +175,99 @@ class MessageBroker(service.Service):
                 traceback.print_exc()
 
     def _usermbox_worker(self, mbox):
-        '''Processes a bunch of messages to be sent massively to recipients.'''
-        # TODO
-        pass
+        '''
+        Processes a bunch of messages to be sent massively to recipients.
+        This takes every message and put it in different lists to be delivered
+        to their respective channels - if available.
+        '''
+
+        outbox = {}
+
+        for msg in mbox:
+            userid = msg['recipient']
+            need_ack = msg['need_ack']
+            #log.debug("queue data for user %s (need_ack=%s)" % (userid, need_ack))
+
+            # generic user, post to every consumer
+            if len(userid) == utils.USERID_LENGTH:
+                try:
+                    for resource, q in self._consumers[userid].iteritems():
+                        outmsg = dict(msg)
+                        # branch the message :)
+                        outmsg['messageid'] = self.message_id()
+                        outmsg['originalid'] = msg['messageid']
+                        outmsg['recipient'] += resource
+
+                        # store to disk (if need_ack)
+                        if need_ack:
+                            try:
+                                #log.debug("storing message %s to disk" % outmsg['messageid'])
+                                self.storage.deliver(outmsg['recipient'], outmsg)
+                            except:
+                                # TODO handle errors
+                                import traceback
+                                traceback.print_exc()
+
+                        # keep in outbox
+                        if (userid+resource) not in outbox:
+                            outbox[userid+resource] = []
+                        outbox[userid+resource].append(outmsg)
+
+                except KeyError:
+                    #log.debug("warning: no consumer to deliver message to %s" % userid)
+                    # store to temporary spool
+                    self.storage.store(userid, msg)
+                    # send push notifications to all matching users
+                    try:
+                        # do not push for receipts
+                        if self.push_manager and msg['headers']['mime'] != MIME_RECEIPT:
+                            self.push_manager.notify_all(userid)
+                    except:
+                        # TODO notify errors
+                        import traceback
+                        traceback.print_exc()
+
+            elif len(userid) == utils.USERID_LENGTH_RESOURCE:
+                uhash, resource = utils.split_userid(userid)
+
+                # store to disk (if need_ack)
+                if need_ack:
+                    try:
+                        #log.debug("storing message %s to disk" % msg['messageid'])
+                        if 'storage' not in msg:
+                            self.storage.store(userid, msg)
+                    except:
+                        # TODO handle errors
+                        import traceback
+                        traceback.print_exc()
+
+                # keep in outbox
+                if userid not in outbox:
+                    outbox[userid] = []
+                outbox[userid].append(msg)
+
+            else:
+                log.warn("warning: unknown userid format %s" % userid)
+
+        for userid, msglist in outbox.iteritems():
+            uhash, resource = utils.split_userid(userid)
+
+            try:
+                # send to client consumer
+                #log.debug("sending message %s to consumer" % msg['messageid'])
+                self._consumers[uhash][resource].put(msglist)
+            except:
+                #log.debug("warning: no consumer to deliver message to %s/%s!" % (uhash, resource))
+                # send push notification
+                try:
+                    # do not push for receipts
+                    if self.push_manager and msg['headers']['mime'] != MIME_RECEIPT:
+                        self.push_manager.notify(userid)
+                except:
+                    # TODO notify errors
+                    import traceback
+                    traceback.print_exc()
+
 
     def _usermsg_worker(self, msg):
         userid = msg['recipient']

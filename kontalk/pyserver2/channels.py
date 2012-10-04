@@ -91,7 +91,7 @@ class C2SChannel:
         if userid:
             log.debug("[%s] user %s logged in." % (tx_id, userid))
             self.userid = userid
-            self.broker.register_user_consumer(userid, self, self.can_broadcast_presence())
+            self.broker.register_user_consumer(userid, self, self.can_broadcast_presence(), self.supports_mailbox())
             return c2s.LoginResponse.STATUS_LOGGED_IN
 
         return c2s.LoginResponse.STATUS_AUTH_FAILED
@@ -277,6 +277,10 @@ class C2SChannel:
     def can_broadcast_presence(self):
         return self.flags & c2s.FLAG_HIDE_PRESENCE == 0
 
+    def supports_mailbox(self):
+        '''c2s protocol 4 and later supports mailbox message.'''
+        return self.client_protocol >= 4
+
     @protoservice
     def user_presence_subscribe(self, userid, events):
         return self.broker.subscribe_user_presence(self.userid, userid, events)
@@ -388,10 +392,11 @@ class C2SChannel:
         else:
             return False
 
-    def _incoming_box(self, data):
+    def _incoming_box(self, data, a = None):
         # TODO check for missing keys
         # TODO avoid using c2s directly; instead create a method in C2SServerProtocol
-        a = c2s.NewMessage()
+        if not a:
+            a = c2s.NewMessage()
         a.message_id = data['messageid']
         if 'originalid' in data:
             a.original_id = data['originalid']
@@ -414,8 +419,17 @@ class C2SChannel:
     def incoming(self, data):
         '''Internal queue worker.'''
         #log.debug("incoming message: %s" % data)
-        a = self._incoming_box(data)
-        return self.protocol.sendBox(a)
+
+        # mailbox
+        if type(data) == list:
+            pack = c2s.Mailbox()
+            for msg in data:
+                a = pack.message.add()
+                self._incoming_box(msg, a)
+        else:
+            pack = self._incoming_box(data)
+
+        return self.protocol.sendBox(pack)
 
     @protoservice
     def conflict(self):
