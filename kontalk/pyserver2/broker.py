@@ -180,7 +180,6 @@ class MessageBroker(service.Service):
         This takes every message and put it in different lists to be delivered
         to their respective channels - if available.
         '''
-
         outbox = {}
 
         for msg in mbox:
@@ -209,9 +208,9 @@ class MessageBroker(service.Service):
                                 traceback.print_exc()
 
                         # keep in outbox
-                        if (userid+resource) not in outbox:
-                            outbox[userid+resource] = []
-                        outbox[userid+resource].append(outmsg)
+                        if outmsg['recipient'] not in outbox:
+                            outbox[outmsg['recipient']] = []
+                        outbox[outmsg['recipient']].append(outmsg)
 
                 except KeyError:
                     #log.debug("warning: no consumer to deliver message to %s" % userid)
@@ -261,7 +260,12 @@ class MessageBroker(service.Service):
                 # send push notification
                 try:
                     # do not push for receipts
-                    if self.push_manager and msg['headers']['mime'] != MIME_RECEIPT:
+                    receipt_found = False
+                    for msg in msglist:
+                        if msg['headers']['mime'] == MIME_RECEIPT:
+                            receipt_found = True
+                            break
+                    if self.push_manager and not receipt_found:
                         self.push_manager.notify(userid)
                 except:
                     # TODO notify errors
