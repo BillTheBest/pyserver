@@ -174,11 +174,10 @@ class PersistentDictStorage(MessageStorage):
 class MySQLStorage(MessageStorage):
     '''MySQL-based message storage.'''
 
-    '''User messages cache.'''
-    _cache = {}
-
     def __init__(self, path, db = None):
         log.debug("init MySQL storage")
+        '''User messages cache.'''
+        self._cache = {}
         self._extra_path = path
         try:
             os.makedirs(self._extra_path)

@@ -38,9 +38,6 @@ def protoservice(func):
 class C2SChannel:
     '''Client channel implementation.'''
 
-    flags = 0
-    userid = None
-    zombie = False
     # default protocol is legacy
     client_protocol = version.DEFAULT_CLIENT_PROTOCOL
 
@@ -48,6 +45,9 @@ class C2SChannel:
         self.protocol = protocol
         self.broker = broker
         self.config = config
+        self.flags = 0
+        self.userid = None
+        self.zombie = False
 
     @protoservice
     def connected(self):
@@ -511,11 +511,10 @@ class S2SMessageChannel:
     # TODO
     # TODO
 
-    fingerprint = None
-
     def __init__(self, protocol, broker):
         self.protocol = protocol
         self.broker = broker
+        self.fingerprint = None
 
     def connected(self):
         # TODO

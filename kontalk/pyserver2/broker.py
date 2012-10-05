@@ -31,7 +31,7 @@ from twisted.internet import task, reactor
 import version, storage, usercache, keyring
 from channels import *
 from broker_twisted import *
-from txrdq import ResizableDispatchQueue
+from txrdq.rdq import ResizableDispatchQueue
 
 from kontalklib import database, utils
 
@@ -59,23 +59,22 @@ USER_EVENT_MASKS = {
 class MessageBroker(service.Service):
     '''Message broker connection manager.'''
 
-    '''Map of the queue consumers.
-    Queues in this map will contain the collection of workers for specific userids.'''
-    _consumers = {}
-    '''Map of channel callbacks.'''
-    _callbacks = {}
-    '''Map of presence subscriptions.'''
-    _presence = {}
-    '''Map of reverse-presence subscriptions.'''
-    _presence_lists = {}
-    '''The push notifications manager.'''
-    push_manager = None
-
     def __init__(self, application, config):
         self.setServiceParent(application)
         self.config = config
         self.fingerprint = str(config['server']['fingerprint'])
         self.ts_start = time.time()
+        '''Map of the queue consumers.
+        Queues in this map will contain the collection of workers for specific userids.'''
+        self._consumers = {}
+        '''Map of channel callbacks.'''
+        self._callbacks = {}
+        '''Map of presence subscriptions.'''
+        self._presence = {}
+        '''Map of reverse-presence subscriptions.'''
+        self._presence_lists = {}
+        '''The push notifications manager.'''
+        self.push_manager = None
 
     def print_version(self):
         log.info("%s version %s" % (version.NAME, version.VERSION))
@@ -179,6 +178,9 @@ class MessageBroker(service.Service):
         Processes a bunch of messages to be sent massively to recipients.
         This takes every message and put it in different lists to be delivered
         to their respective channels - if available.
+        TODO this method is used only to requeue messages on login, so we can
+        take something for granted, e.g. userid will be the same for every
+        message, push notifications are not needed, ...
         '''
         outbox = {}
 
@@ -355,15 +357,15 @@ class MessageBroker(service.Service):
         if uhash in self._consumers:
             if resource in self._consumers[uhash]:
                 # resource conflict - stop previous queue worker
-                self._consumers[uhash][resource].stop()
+                self._consumers[uhash][resource].stop(True)
                 # disconnect client
                 self._callbacks[userid]['conflict']()
         else:
             self._consumers[uhash] = {}
 
         self._callbacks[userid] = { 'conflict' : worker.conflict, 'client_protocol' : worker.get_client_protocol }
-        self._consumers[uhash][resource] = ResizableDispatchQueue(worker.incoming)
-        self._consumers[uhash][resource].start(50)
+        # TODO configurable queue width
+        self._consumers[uhash][resource] = ResizableDispatchQueue(worker.incoming, 50)
 
         # mark user as online in the push notifications manager
         if self.push_manager:
@@ -395,7 +397,7 @@ class MessageBroker(service.Service):
             except:
                 pass
             # stop previous queue if any
-            self._consumers[uhash][resource].stop()
+            self._consumers[uhash][resource].stop(True)
             del self._consumers[uhash][resource]
             if len(self._consumers[uhash]) == 0:
                 del self._consumers[uhash]

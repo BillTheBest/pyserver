@@ -60,13 +60,13 @@ class S2SMessageServerProtocol(InternalServerProtocol):
 class S2SRequestServerProtocol(txprotobuf.DatagramProtocol):
     '''Server-to-server request protocol.'''
 
-    '''Map of packets waiting for a response.'''
-    _tx = {}
     '''Timeout delay.'''
     timeout_delay = 5
 
     def __init__(self, config):
         txprotobuf.DatagramProtocol.__init__(self, s2s)
+        '''Map of packets waiting for a response.'''
+        self._tx = {}
 
     def _timeout(self, user_defer):
         '''Handles a deferred timeout.'''

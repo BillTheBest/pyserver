@@ -1,1 +1,8 @@
 Queue-based persistent connection messaging server in Python.
+
+Python dependencies:
+* twisted >= 12
+* txrdq >= 0.2
+* nevow >= 0.10
+* oursql >= 0.9
+* pyme >= 0.8

@@ -102,8 +102,6 @@ class BaseRequest(resource.Resource):
 
 class EndpointChannel(JSONResource):
     '''HTTP endpoint channel.'''
-    zombie = False
-    queue = defer.DeferredQueue()
 
     def __init__(self, endpoint, sid, userid):
         resource.Resource.__init__(self)
@@ -111,6 +109,8 @@ class EndpointChannel(JSONResource):
         self.broker = self.endpoint.broker
         self.sessionid = sid
         self.userid = userid
+        self.queue = defer.DeferredQueue()
+        self.zombie = False
         self.putChild('logout', BaseRequest(self, self.logout))
         self.putChild('polling', BaseRequest(self, self.polling))
         self.putChild('received', BaseRequest(self, self.received))
@@ -139,7 +139,6 @@ class EndpointChannel(JSONResource):
 
     def incoming(self, data):
         '''Internal queue worker.'''
-        #log.debug("incoming data: %s" % (data, ))
         self.queue.put(data)
 
     def _format_msg(self, msg):
@@ -165,14 +164,13 @@ class EndpointChannel(JSONResource):
         return msg
 
     def _push(self, data, request):
-        #log.debug("pushing message: %s" % (data, ))
         if type(data) == list:
             output = [self._format_msg(x) for x in data]
         else:
             output = (self._format_msg(data), )
         self.render_json(request, output)
 
-    def _respone_error(self, err, call):
+    def _response_error(self, err, call):
         call.cancel()
 
     def _error(self, err, req):
@@ -186,7 +184,7 @@ class EndpointChannel(JSONResource):
         d = self.queue.get()
         d.addCallback(self._push, request)
         d.addErrback(self._error, request)
-        request.notifyFinish().addErrback(self._respone_error, d)
+        request.notifyFinish().addErrback(self._response_error, d)
         return server.NOT_DONE_YET
 
     @post
@@ -234,11 +232,11 @@ class EndpointLoginRealm(object):
 
 class Endpoint(resource.Resource):
     '''HTTP endpoint connection manager.'''
-    channels = {}
 
     def __init__(self, config, broker):
         resource.Resource.__init__(self)
         self.broker = broker
+        self.channels = {}
 
         # login via http auth
         credFactory = utils.AuthKontalkTokenFactory(str(config['server']['fingerprint']), broker.keyring)

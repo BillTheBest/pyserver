@@ -7,8 +7,9 @@
 
 -- HTTP endpoint --
 [ ] handle channel timeout
-[ ] merge multiple messages into a single polling response (modifications to broker needed)
-[ ] format incoming messages before sending them to the clients
+[ ] requeue pending messages on repeated polling?
+[x] merge multiple messages into a single polling response (modifications to broker needed)
+[x] format incoming messages before sending them to the clients
 
 -- scheduled --
 [ ] multithread: c2s/s2s
