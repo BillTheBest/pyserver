@@ -21,7 +21,7 @@
 
 import kontalklib.logging as log
 import os, time
-import json
+import json, base64
 
 from zope.interface import implements
 
@@ -32,18 +32,30 @@ from twisted.cred.portal import IRealm, Portal
 from twisted.web.guard import HTTPAuthSessionWrapper
 
 from kontalklib import database, token, utils
-import version, storage
+import broker, version, storage
 
-
-def authenticated(func):
-    '''Apply this decorator to methods which need login.'''
-    func.authmethod = True
-    return func
 
 def post(func):
-    '''Apply this decorator to for HTTP POST methods.'''
+    '''Apply this decorator to HTTP POST methods.'''
     func.httpmethod = 'POST'
     return func
+
+
+class JSONResource(resource.Resource):
+    '''A Resource that outputs data in JSON format.'''
+
+    def render_JSON(self, request, data):
+        if data != server.NOT_DONE_YET:
+            if data:
+                request.setHeader('content-type', 'application/json')
+                return json.dumps(data)
+            else:
+                request.setHeader('content-type', 'text/plain')
+                return utils.no_content(request)
+
+        # return raw output
+        request.setHeader('content-type', 'application/octet-stream')
+        return data
 
 
 class BaseRequest(resource.Resource):
@@ -52,17 +64,10 @@ class BaseRequest(resource.Resource):
         self.endpoint = endpoint
         self.method = method
 
-    def need_auth(self):
-        return 'authmethod' in dir(self.method) and self.method.authmethod
-
     def post_method(self):
         return 'httpmethod' in dir(self.method) and self.method.httpmethod == 'POST'
 
     def _render(self, request, data = None):
-        if self.need_auth() and not self.endpoint.logged:
-            #log.debug("authenticated method - dropping request")
-            return self.endpoint.unauthorized(request)
-
         if data != None:
             output = self.method(request, data)
         else:
@@ -72,7 +77,7 @@ class BaseRequest(resource.Resource):
             if output:
                 return json.dumps(output)
             else:
-                return self.endpoint.no_content(request)
+                return utils.no_content(request)
 
         # return raw output
         return output
@@ -80,64 +85,45 @@ class BaseRequest(resource.Resource):
     def render_GET(self, request):
         if self.post_method():
             #log.debug("POST only method - dropping request")
-            return self.endpoint.bad_request(request)
+            return utils.bad_request(request)
         return self._render(request)
 
     def render_POST(self, request):
         if not self.post_method():
             #log.debug("GET only method - dropping request")
-            return self.endpoint.bad_request(request)
+            return utils.bad_request(request)
 
         try:
             data = json.load(request.content)
             return self._render(request, data)
         except:
-            return self.endpoint.bad_request(request)
+            return utils.bad_request(request)
 
 
-class Endpoint(resource.Resource):
-    '''HTTP endpoint connection manager.'''
-    logged = False
+class EndpointChannel(JSONResource):
+    '''HTTP endpoint channel.'''
+    zombie = False
     queue = defer.DeferredQueue()
 
-    def __init__(self, broker, userid):
+    def __init__(self, endpoint, sid, userid):
         resource.Resource.__init__(self)
-        self.broker = broker
+        self.endpoint = endpoint
+        self.broker = self.endpoint.broker
+        self.sessionid = sid
         self.userid = userid
-        self.putChild('login', BaseRequest(self, self.login))
         self.putChild('logout', BaseRequest(self, self.logout))
         self.putChild('polling', BaseRequest(self, self.polling))
         self.putChild('received', BaseRequest(self, self.received))
 
-    def finish(self):
-        pass
-
-    def _quick_response(self, request, code, text = ''):
-        request.setResponseCode(code)
-        request.setHeader('content-type', 'text/plain')
-        return text
-
-    def bad_request(self, request):
-        return self._quick_response(request, 400, 'bad request')
-
-    def not_found(self, request):
-        return self._quick_response(request, 404, 'not found')
-
-    def unauthorized(self, request):
-        return self._quick_response(request, 401, 'unauthorized')
-
-    def no_content(self, request):
-        return self._quick_response(request, 204)
-
     def render_GET(self, request):
-        log.debug("request from %s: %s" % (self.userid, request.args))
-        return self.bad_request(request)
+        #log.debug("request from %s: %s" % (self.userid, request.args))
+        return utils.bad_request(request)
 
     def render_json(self, request, data, finish = True):
         if data:
             data = json.dumps(data)
         else:
-            return self.no_content(request)
+            return utils.no_content(request)
         request.write(data)
         if finish:
             request.finish()
@@ -145,73 +131,153 @@ class Endpoint(resource.Resource):
     def conflict(self):
         '''Called on resource conflict.'''
         log.debug("resource conflict for %s" % self.userid)
+        self.zombie = True
+        self.endpoint.destroy(self.sessionid)
 
     def get_client_protocol(self):
         return version.CLIENT_PROTOCOL
 
     def incoming(self, data):
         '''Internal queue worker.'''
-        # TODO handle notifyFinish()
-        # http://twistedmatrix.com/documents/current/web/howto/web-in-60/interrupted.html
+        #log.debug("incoming data: %s" % (data, ))
         self.queue.put(data)
 
     def _format_msg(self, msg):
+        msg['content'] = base64.b64encode(msg['payload'])
+        msg['need_ack'] = (msg['need_ack'] != broker.MSG_ACK_NONE)
+        msg['mime'] = msg['headers']['mime']
+        msg['flags'] = msg['headers']['flags']
         msg['timestamp'] = long(time.mktime(msg['timestamp'].timetuple()))
+
+        if 'filename' in msg['headers']:
+            msg['url'] = self.broker.config['fileserver']['download_url'] % msg['headers']['filename']
+            try:
+                (filename, _mime, _md5sum) = self.broker.storage.get_extra(msg['headers']['filename'], self.userid)
+                a.length = os.path.getsize(filename)
+            except:
+                log.warn("attachment not found, unable to send length out")
+            del msg['filename']
+
+        # clean private data
+        del msg['payload']
+        del msg['need_ack']
+        del msg['headers']
         return msg
 
     def _push(self, data, request):
-        log.debug("pushing message: %s" % (data, ))
-        # TODO multiple messages
-        # TODO format output
-        self.render_json(request, (self._format_msg(data), ))
+        #log.debug("pushing message: %s" % (data, ))
+        if type(data) == list:
+            output = [self._format_msg(x) for x in data]
+        else:
+            output = (self._format_msg(data), )
+        self.render_json(request, output)
+
+    def _respone_error(self, err, call):
+        call.cancel()
+
+    def _error(self, err, req):
+        if err.type != defer.CancelledError:
+            import traceback
+            log.error("error: %s" % (traceback.format_exc(), ))
 
     ## Web methods ##
 
-    @authenticated
     def polling(self, request):
         d = self.queue.get()
         d.addCallback(self._push, request)
+        d.addErrback(self._error, request)
+        request.notifyFinish().addErrback(self._respone_error, d)
         return server.NOT_DONE_YET
 
-    @authenticated
     @post
     def received(self, request, data):
         return self.broker.ack_user(self.userid, [str(x) for x in data])
 
-    @authenticated
     @post
     def message(self, request):
         # TODO
         pass
 
-    def login(self, request):
-        log.debug("user %s logged in." % (self.userid))
-        # TODO flags
-        self.broker.register_user_consumer(self.userid, self)
-        self.logged = True
-
-    @authenticated
     def logout(self, request):
         log.debug("user %s logged out." % (self.userid))
-        self.broker.unregister_user_consumer(self.userid)
-        self.logged = False
+        if not self.zombie:
+            self.broker.unregister_user_consumer(self.userid)
+        # destroy session
+        self.endpoint.destroy(self.sessionid)
 
 
-class EndpointRealm(object):
+class EndpointLogin(JSONResource):
+    '''HTTP endpoint session request resource.'''
+
+    def __init__(self, endpoint, userid):
+        resource.Resource.__init__(self)
+        self.endpoint = endpoint
+        self.userid = userid
+
+    def render_GET(self, request):
+        return self.render_JSON(request, self.endpoint.login(self.userid))
+
+    def finish(self):
+        pass
+
+
+class EndpointLoginRealm(object):
     implements(IRealm)
 
-    channels = {}
-
-    def __init__(self, broker):
-        self.broker = broker
+    def __init__(self, endpoint):
+        self.endpoint = endpoint
 
     def requestAvatar(self, avatarId, mind, *interfaces):
+        endpoint = EndpointLogin(self.endpoint, avatarId)
+        return interfaces[0], endpoint, endpoint.finish
+
+
+class Endpoint(resource.Resource):
+    '''HTTP endpoint connection manager.'''
+    channels = {}
+
+    def __init__(self, config, broker):
+        resource.Resource.__init__(self)
+        self.broker = broker
+
+        # login via http auth
+        credFactory = utils.AuthKontalkTokenFactory(str(config['server']['fingerprint']), broker.keyring)
+        portal = Portal(EndpointLoginRealm(self), [utils.AuthKontalkToken()])
+        child = HTTPAuthSessionWrapper(portal, [credFactory])
+        self.putChild('login', child)
+
+        # TODO write something more suitable :)
+        self.putChild('', static.Data('Kontalk HTTP service running.', 'text/plain'))
+
+    def getChild(self, path, request):
         try:
-            return interfaces[0], self.channels[avatarId], self.channels[avatarId].finish
+            return self.children[path]
         except KeyError:
-            endpoint = Endpoint(self.broker, avatarId)
-            self.channels[avatarId] = endpoint
-            return interfaces[0], endpoint, endpoint.finish
+            # no child found, assume channel id
+            try:
+                return self.channels[path]
+            except KeyError:
+                return resource.NoResource()
+
+    def render_GET(self, request):
+        # TODO write something more suitable :)
+        return utils._quick_response(request, 200, 'Kontalk HTTP service running.')
+
+    def login(self, userid):
+        '''Create a channel for the requested userid.'''
+        # register user consumer
+        sid = utils.rand_str(40, utils.CHARSBOX_AZN_LOWERCASE)
+        ch = EndpointChannel(self, sid, userid)
+        self.broker.register_user_consumer(userid, ch, supports_mailbox=True)
+        log.debug("user %s logged in." % (userid, ))
+
+        self.channels[sid] = ch
+        return { 'id' : sid }
+
+    def destroy(self, sid):
+        '''Destroy a channel assigned to a sessionid.'''
+        if sid in self.channels:
+            del self.channels[sid]
 
 
 class EndpointService(resource.Resource, service.Service):
@@ -227,20 +293,9 @@ class EndpointService(resource.Resource, service.Service):
         service.Service.startService(self)
         log.debug("HTTP endpoint init")
         self.storage = self.broker.storage
-        self.db = self.broker.db
-
-        credFactory = utils.AuthKontalkTokenFactory(str(self.config['server']['fingerprint']), self.broker.keyring)
-
-        # setup endpoint
-        portal = Portal(EndpointRealm(self.broker), [utils.AuthKontalkToken()])
-        resource = HTTPAuthSessionWrapper(portal, [credFactory])
-
-        # TODO write something more suitable :)
-        self.putChild('', static.Data('Kontalk HTTP service running.', 'text/plain'))
-        self.putChild('endpoint', resource)
 
         # create http service
-        factory = server.Site(self)
+        factory = server.Site(Endpoint(self.config, self.broker))
         fs_service = internet.TCPServer(port=self.config['server']['endpoint.bind'][1],
             factory=factory, interface=self.config['server']['endpoint.bind'][0])
         fs_service.setServiceParent(self.parent)
