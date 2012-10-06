@@ -66,8 +66,11 @@ class WebMonitor(rend.Page, service.Service):
         uptime = long(self.broker.uptime())
         mins, secs = divmod(uptime, 60)
         hours, mins = divmod(mins, 60)
-        return '%02d:%02d:%02d' % \
-            (hours, mins, secs)
+        days = long(hours / 24)
+        log.debug((days, hours, mins))
+        hours = hours % 24
+        return '%d:%02d:%02d:%02d' % \
+            (days, hours, mins, secs)
 
     def data_local_users(self, context, data):
         return self.broker.users_cached_count()

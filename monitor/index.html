@@ -16,9 +16,10 @@ function countup(id) {
         if (!units[i].length)
             units[i] = 0;
     }
-    var hours = parseInt(units[0]);
-    var mins = parseInt(units[1]);
-    var secs = parseInt(units[2]);
+    var days = parseInt(units[0]);
+    var hours = parseInt(units[1]);
+    var mins = parseInt(units[2]);
+    var secs = parseInt(units[3]);
 
     secs++;
     if (secs >= 60) {
@@ -29,8 +30,12 @@ function countup(id) {
         mins = 0;
         hours++;
     }
+    if (hours >= 24) {
+        hours = 0;
+        days++;
+    }
 
-    span.textContent = ('0' + hours).slice(-2) + ':' +
+    span.textContent = days + ':' + ('0' + hours).slice(-2) + ':' +
         ('0' + mins).slice(-2) + ':' + ('0' + secs).slice(-2);
     setTimeout("countup('"+id+"')", 1000);
 }
