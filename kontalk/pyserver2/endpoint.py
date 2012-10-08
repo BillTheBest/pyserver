@@ -97,6 +97,8 @@ class BaseRequest(resource.Resource):
             data = json.load(request.content)
             return self._render(request, data)
         except:
+            import traceback
+            log.error("error: %s" % (traceback.format_exc(), ))
             return utils.bad_request(request)
 
 
@@ -114,6 +116,7 @@ class EndpointChannel(JSONResource):
         self.putChild('logout', BaseRequest(self, self.logout))
         self.putChild('polling', BaseRequest(self, self.polling))
         self.putChild('received', BaseRequest(self, self.received))
+        self.putChild('message', BaseRequest(self, self.message))
 
     def render_GET(self, request):
         #log.debug("request from %s: %s" % (self.userid, request.args))
@@ -189,12 +192,50 @@ class EndpointChannel(JSONResource):
 
     @post
     def received(self, request, data):
+        '''Ack messages.'''
         return self.broker.ack_user(self.userid, [str(x) for x in data])
 
     @post
-    def message(self, request):
-        # TODO
-        pass
+    def message(self, request, data):
+        '''Send a message.'''
+        log.debug("sending message: %s" % (data, ))
+
+        # TODO check for missing keys
+        content = data['content']
+        mime = data['mime']
+
+        # TODO attachments & flags
+        attachment = False
+        filename = None
+        flags = []
+
+        res = {}
+        for rcpt in data['to']:
+            u = str(rcpt)
+            length = len(content)
+            mime_supported = mime in self.broker.config['fileserver']['accept_content'] \
+                if attachment else mime in self.broker.config['broker']['accept_content']
+            if not mime_supported:
+                log.debug("[%s] mime type not supported: %s - dropping" % \
+                    (tx_id, mime))
+                res[u] = c2s.MessagePostResponse.MessageSent.STATUS_NOTSUPPORTED
+            elif length > self.broker.config['broker']['max_size']:
+                log.debug("[%s] message too big (%d bytes) - dropping" % \
+                    (tx_id, length))
+                res[u] = c2s.MessagePostResponse.MessageSent.STATUS_BIG
+            else:
+                misc = {
+                    'mime' : mime,
+                    'flags' : flags
+                }
+                if filename:
+                    misc['filename'] = fileid
+
+                res[u] = self.broker.publish_user(self.userid, u, misc, content, broker.MSG_ACK_BOUNCE)
+
+        log.debug("message sent! %s" % (res, ))
+        return res
+
 
     def logout(self, request):
         log.debug("user %s logged out." % (self.userid))
