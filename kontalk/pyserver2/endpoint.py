@@ -26,7 +26,7 @@ import json, base64
 from zope.interface import implements
 
 from twisted.web import server, resource, static
-from twisted.internet import defer
+from twisted.internet import defer, reactor
 from twisted.application import internet, service
 from twisted.cred.portal import IRealm, Portal
 from twisted.web.guard import HTTPAuthSessionWrapper
@@ -173,13 +173,24 @@ class EndpointChannel(JSONResource):
             output = (self._format_msg(data), )
         self.render_json(request, output)
 
-    def _response_error(self, err, call):
+    def _response_error(self, err, call, timeout):
         call.cancel()
+        timeout.cancel()
 
     def _error(self, err, req):
         if err.type != defer.CancelledError:
             import traceback
             log.error("error: %s" % (traceback.format_exc(), ))
+
+    def _polling_timeout(self, request, callback):
+        try:
+            # FIXME Lighttpd ModProxyCore will not finish the request
+            #utils.no_content(request)
+            request.finish()
+        except:
+            import traceback
+            log.error("error: %s" % (traceback.format_exc(), ))
+
 
     ## Web methods ##
 
@@ -187,7 +198,9 @@ class EndpointChannel(JSONResource):
         d = self.queue.get()
         d.addCallback(self._push, request)
         d.addErrback(self._error, request)
-        request.notifyFinish().addErrback(self._response_error, d)
+        # TODO timeout value
+        timeout = reactor.callLater(5, self._polling_timeout, request, d)
+        request.notifyFinish().addErrback(self._response_error, d, timeout)
         return server.NOT_DONE_YET
 
     @post
