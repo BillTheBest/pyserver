@@ -374,14 +374,8 @@ class MessageBroker(service.Service):
         # broadcast presence
         self.broadcast_presence(userid, c2s.UserPresence.EVENT_ONLINE, None, not broadcast_presence)
 
-        """
-        WARNING these two need to be called in this order!!!
-        Otherwise bad things happen...
-        """
-        # load previously stored messages (for specific) and requeue them
-        self._reload_usermsg_queue(userid, supports_mailbox)
-        # load previously stored messages (for generic) and requeue them
-        self._reload_usermsg_queue(uhash, supports_mailbox)
+        # requeue pending messages
+        self.pending_messages(userid, supports_mailbox)
 
     def unregister_user_consumer(self, userid, broadcast_presence = True):
         uhash, resource = utils.split_userid(userid)
@@ -409,6 +403,18 @@ class MessageBroker(service.Service):
         self.unsubscribe_user_presence(userid)
         # broadcast presence
         self.broadcast_presence(userid, c2s.UserPresence.EVENT_OFFLINE, None, not broadcast_presence)
+
+    def pending_messages(self, userid, supports_mailbox = False):
+        uhash, resource = utils.split_userid(userid)
+        """
+        WARNING these two need to be called in this order!!!
+        Otherwise bad things happen...
+        """
+        # load previously stored messages (for specific) and requeue them
+        self._reload_usermsg_queue(userid, supports_mailbox)
+        # load previously stored messages (for generic) and requeue them
+        self._reload_usermsg_queue(uhash, supports_mailbox)
+
 
     def message_id(self):
         return utils.rand_str(30)

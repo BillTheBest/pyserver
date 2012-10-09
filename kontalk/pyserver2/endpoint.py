@@ -68,6 +68,7 @@ class BaseRequest(resource.Resource):
         return 'httpmethod' in dir(self.method) and self.method.httpmethod == 'POST'
 
     def _render(self, request, data = None):
+        request.setHeader('content-type', 'application/json')
         if data != None:
             output = self.method(request, data)
         else:
@@ -113,7 +114,9 @@ class EndpointChannel(JSONResource):
         self.userid = userid
         self.queue = defer.DeferredQueue()
         self.zombie = False
+        self.pollingDefer = None
         self.putChild('logout', BaseRequest(self, self.logout))
+        self.putChild('pending', BaseRequest(self, self.pending))
         self.putChild('polling', BaseRequest(self, self.polling))
         self.putChild('received', BaseRequest(self, self.received))
         self.putChild('message', BaseRequest(self, self.message))
@@ -174,6 +177,7 @@ class EndpointChannel(JSONResource):
         self.render_json(request, output)
 
     def _response_error(self, err, call, timeout):
+        log.error("response error: %s" % (err, ))
         call.cancel()
         timeout.cancel()
 
@@ -184,8 +188,8 @@ class EndpointChannel(JSONResource):
 
     def _polling_timeout(self, request, callback):
         try:
-            # FIXME Lighttpd ModProxyCore will not finish the request
-            #utils.no_content(request)
+            # WARNING Lighttpd ModProxyCore will not finish the request
+            utils.no_content(request)
             request.finish()
         except:
             import traceback
@@ -194,13 +198,21 @@ class EndpointChannel(JSONResource):
 
     ## Web methods ##
 
+    def pending(self, request):
+        '''Requeues pending incoming messages to be retrieved by polling.'''
+        self.broker.pending_messages(self.userid, True)
+
     def polling(self, request):
-        d = self.queue.get()
-        d.addCallback(self._push, request)
-        d.addErrback(self._error, request)
+        '''Polling for incoming messages.'''
+        if self.pollingDefer:
+            self.pollingDefer.cancel()
+
+        self.pollingDefer = self.queue.get()
+        self.pollingDefer.addCallback(self._push, request)
+        self.pollingDefer.addErrback(self._error, request)
         # TODO timeout value
-        timeout = reactor.callLater(5, self._polling_timeout, request, d)
-        request.notifyFinish().addErrback(self._response_error, d, timeout)
+        timeout = reactor.callLater(30, self._polling_timeout, request, self.pollingDefer)
+        request.notifyFinish().addErrback(self._response_error, self.pollingDefer, timeout)
         return server.NOT_DONE_YET
 
     @post
@@ -258,48 +270,20 @@ class EndpointChannel(JSONResource):
         self.endpoint.destroy(self.sessionid)
 
 
-class EndpointLogin(JSONResource):
-    '''HTTP endpoint session request resource.'''
-
-    def __init__(self, endpoint, userid):
-        resource.Resource.__init__(self)
-        self.endpoint = endpoint
-        self.userid = userid
-
-    def render_GET(self, request):
-        return self.render_JSON(request, self.endpoint.login(self.userid))
-
-    def finish(self):
-        pass
-
-
-class EndpointLoginRealm(object):
-    implements(IRealm)
-
-    def __init__(self, endpoint):
-        self.endpoint = endpoint
-
-    def requestAvatar(self, avatarId, mind, *interfaces):
-        endpoint = EndpointLogin(self.endpoint, avatarId)
-        return interfaces[0], endpoint, endpoint.finish
-
-
 class Endpoint(resource.Resource):
     '''HTTP endpoint connection manager.'''
+
+    # TODO write something more suitable :)
+    intro = 'Kontalk HTTP service running.'
 
     def __init__(self, config, broker):
         resource.Resource.__init__(self)
         self.broker = broker
         self.channels = {}
 
-        # login via http auth
-        credFactory = utils.AuthKontalkTokenFactory(str(config['server']['fingerprint']), broker.keyring)
-        portal = Portal(EndpointLoginRealm(self), [utils.AuthKontalkToken()])
-        child = HTTPAuthSessionWrapper(portal, [credFactory])
-        self.putChild('login', child)
-
-        # TODO write something more suitable :)
-        self.putChild('', static.Data('Kontalk HTTP service running.', 'text/plain'))
+        self.putChild('', static.Data(self.intro, 'text/plain'))
+        self.putChild('validate', BaseRequest(self, self.validate))
+        self.putChild('login', BaseRequest(self, self.login))
 
     def getChild(self, path, request):
         try:
@@ -311,13 +295,49 @@ class Endpoint(resource.Resource):
             except KeyError:
                 return resource.NoResource()
 
-    def render_GET(self, request):
-        # TODO write something more suitable :)
-        return utils._quick_response(request, 200, 'Kontalk HTTP service running.')
+    ## Web methods ##
 
-    def login(self, userid):
+    def validate(self, request):
+        '''Check a validation code and generates a user token to login with.'''
+        code = request.args['c'][0]
+        if not code or len(code) != utils.VALIDATION_CODE_LENGTH:
+            return utils.bad_request(request)
+
+        # lookup the verification code
+        valdb = database.validations(self.broker.db)
+
+        userid = valdb.get_userid(code)
+        if userid:
+            # damn unicode!
+            userid = str(userid)
+
+            # delete verification entry in validations table
+            valdb.delete(code)
+            # touch user so we get a first presence
+            self.broker.usercache.touch_user(userid)
+
+            # here is your token
+            log.debug("generating token for %s" % (userid, ))
+            str_token = token.user_token(userid,
+                str(self.broker.config['server']['fingerprint']))
+            return {'auth': str_token }
+
+        else:
+            return utils.not_found(request)
+
+
+    @post
+    def login(self, request, data):
         '''Create a channel for the requested userid.'''
-        # register user consumer
+        try:
+            auth = data['auth']
+            userid = token.verify_user_token(auth, self.broker.keyring, self.broker.fingerprint)
+        except:
+            import traceback
+            traceback.print_exc()
+            log.debug("token verification failed!")
+            return utils.unauthorized(request)
+
         sid = utils.rand_str(40, utils.CHARSBOX_AZN_LOWERCASE)
         ch = EndpointChannel(self, sid, userid)
         self.broker.register_user_consumer(userid, ch, supports_mailbox=True)
