@@ -340,7 +340,7 @@ class Endpoint(resource.Resource):
 
         sid = utils.rand_str(40, utils.CHARSBOX_AZN_LOWERCASE)
         ch = EndpointChannel(self, sid, userid)
-        self.broker.register_user_consumer(userid, ch, supports_mailbox=True)
+        self.broker.register_user_consumer(userid, ch, supports_mailbox=True, pending=False)
         log.debug("user %s logged in." % (userid, ))
 
         self.channels[sid] = ch

@@ -351,7 +351,7 @@ class MessageBroker(service.Service):
         else:
             log.warn("warning: unknown userid format %s" % userid)
 
-    def register_user_consumer(self, userid, worker, broadcast_presence = True, supports_mailbox = False):
+    def register_user_consumer(self, userid, worker, broadcast_presence = True, supports_mailbox = False, pending = True):
         uhash, resource = utils.split_userid(userid)
 
         if uhash in self._consumers:
