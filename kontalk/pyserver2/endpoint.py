@@ -320,7 +320,7 @@ class Endpoint(resource.Resource):
             log.debug("generating token for %s" % (userid, ))
             str_token = token.user_token(userid,
                 str(self.broker.config['server']['fingerprint']))
-            return {'auth': str_token }
+            return {'auth': str_token, 'userid': userid }
 
         else:
             return utils.not_found(request)

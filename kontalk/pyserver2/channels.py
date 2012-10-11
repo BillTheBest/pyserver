@@ -74,7 +74,7 @@ class C2SChannel:
         '''Client is trying to login.'''
         # check protocol version
         if client_protocol < version.CLIENT_PROTOCOL:
-            return c2s.LoginResponse.STATUS_PROTOCOL_MISMATCH
+            return c2s.LoginResponse.STATUS_PROTOCOL_MISMATCH, None
 
         if client_protocol:
             self.client_protocol = client_protocol
@@ -92,9 +92,9 @@ class C2SChannel:
             log.debug("[%s] user %s logged in." % (tx_id, userid))
             self.userid = userid
             self.broker.register_user_consumer(userid, self, self.can_broadcast_presence(), self.supports_mailbox())
-            return c2s.LoginResponse.STATUS_LOGGED_IN
+            return c2s.LoginResponse.STATUS_LOGGED_IN, self.userid
 
-        return c2s.LoginResponse.STATUS_AUTH_FAILED
+        return c2s.LoginResponse.STATUS_AUTH_FAILED, None
 
     @protoservice
     def authenticate(self, tx_id, auth_token):

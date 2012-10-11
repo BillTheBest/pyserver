@@ -203,7 +203,9 @@ class C2SServerProtocol(InternalServerProtocol):
 
         if name == 'LoginRequest':
             r = c2s.LoginResponse()
-            r.status = self.service.login(str(tx_id), data.token, data.client_protocol, data.client_version, data.flags)
+            (r.status, userid) = self.service.login(str(tx_id), data.token, data.client_protocol, data.client_version, data.flags)
+            if userid:
+                r.user_id = userid
 
         elif name == 'AuthenticateRequest':
             r = c2s.AuthenticateResponse()
