@@ -116,6 +116,7 @@ class EndpointChannel(JSONResource):
         self.zombie = False
         self.pollingDefer = None
         self.putChild('logout', BaseRequest(self, self.logout))
+        self.putChild('userinfo', BaseRequest(self, self.userinfo))
         self.putChild('pending', BaseRequest(self, self.pending))
         self.putChild('polling', BaseRequest(self, self.polling))
         self.putChild('received', BaseRequest(self, self.received))
@@ -197,6 +198,9 @@ class EndpointChannel(JSONResource):
 
 
     ## Web methods ##
+
+    def userinfo(self, request):
+        return {'userid': self.userid}
 
     def pending(self, request):
         '''Requeues pending incoming messages to be retrieved by polling.'''
