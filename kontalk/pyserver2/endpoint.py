@@ -230,7 +230,7 @@ class EndpointChannel(JSONResource):
         log.debug("sending message: %s" % (data, ))
 
         # TODO check for missing keys
-        content = data['content']
+        content = base64.b64decode(data['content'])
         mime = data['mime']
 
         # TODO attachments & flags
