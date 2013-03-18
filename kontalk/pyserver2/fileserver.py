@@ -54,7 +54,7 @@ class ServerlistDownload(resource.Resource):
         e.port = self.config['server']['c2s.bind'][1]
         e.http_port = self.config['server']['fileserver.bind'][1]
 
-        srvlist = self.servers.get_list(False, True)
+        srvlist = self.servers.get_list()
         for srv in srvlist:
             e = a.entry.add()
             e.address = srv['host']
