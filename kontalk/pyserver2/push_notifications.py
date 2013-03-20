@@ -99,4 +99,5 @@ class GooglePush(PushServer):
         fd = urllib2.urlopen(req)
         # TODO what do we do with the output??
         data = fd.read()
+        log.debug("data from gcm: %s" % (data, ))
         return data
