@@ -100,4 +100,5 @@ class GooglePush(PushServer):
         # TODO what do we do with the output??
         data = fd.read()
         log.debug("data from gcm: %s" % (data, ))
+        fd.close()
         return data
