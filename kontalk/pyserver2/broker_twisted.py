@@ -361,7 +361,6 @@ class InternalServerFactory(ServerFactory):
 
     def __init__(self, protocol, service_class, broker, config):
         self.protocol = protocol
-        self.protocols = []
         self.service = service_class
         self.broker = broker
         self.config = config
@@ -370,5 +369,4 @@ class InternalServerFactory(ServerFactory):
         p = self.protocol(self.config)
         p.factory = self
         p.service = self.service(protocol=p, broker=self.broker, config=self.config)
-        self.protocols.append(p)
         return p
