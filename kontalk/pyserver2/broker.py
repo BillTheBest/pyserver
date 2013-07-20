@@ -75,6 +75,8 @@ class MessageBroker(service.Service):
         self._presence_lists = {}
         '''The push notifications manager.'''
         self.push_manager = None
+        '''Hide status.'''
+        self._hidden = {}
 
     def print_version(self):
         log.info("%s version %s" % (version.NAME, version.VERSION))
@@ -172,6 +174,10 @@ class MessageBroker(service.Service):
                 # TODO notify errors
                 import traceback
                 traceback.print_exc()
+
+    def set_user_hide_status(self, userid, hide=False):
+        """Sets internal hide status for a user."""
+        self._hidden[userid] = hide
 
     def _usermbox_worker(self, mbox):
         '''
@@ -371,8 +377,9 @@ class MessageBroker(service.Service):
         if self.push_manager:
             self.push_manager.mark_user_online(userid)
 
-        # broadcast presence
-        self.broadcast_presence(userid, c2s.UserPresence.EVENT_ONLINE, None, not broadcast_presence)
+        # broadcast presence (if not hidden)
+        if userid not in self._hidden or not self._hidden[userid]:
+            self.broadcast_presence(userid, c2s.UserPresence.EVENT_ONLINE, None, not broadcast_presence)
 
         # requeue pending messages
         self.pending_messages(userid, supports_mailbox)

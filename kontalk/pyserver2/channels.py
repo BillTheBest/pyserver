@@ -253,6 +253,8 @@ class C2SChannel:
 
         if flags != None:
             fields['flags'] = flags
+            # set hide status
+            self.broker.set_user_hide_status(flags & c2s.FLAG_HIDE_PRESENCE)
 
         if status_msg != None:
             # status message too long
@@ -498,6 +500,7 @@ class S2SRequestChannel:
         ret = []
         for u in users:
             nstat = {'userid' : u}
+            # TODO filters hidden users
             stat = self.broker.usercache.get_user_data(u)
             if stat:
                 if stat['status']:
