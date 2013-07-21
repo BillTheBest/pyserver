@@ -76,7 +76,7 @@ class MessageBroker(service.Service):
         '''The push notifications manager.'''
         self.push_manager = None
         '''Hide status.'''
-        self._hidden = {}
+        self._hidden = set()
 
     def print_version(self):
         log.info("%s version %s" % (version.NAME, version.VERSION))
@@ -177,7 +177,12 @@ class MessageBroker(service.Service):
 
     def set_user_hide_status(self, userid, hide=False):
         """Sets internal hide status for a user."""
-        self._hidden[userid] = hide
+        if hide:
+            #log.debug("hiding user %s" % (userid, ))
+            self._hidden.add(userid)
+        else:
+            #log.debug("showing user %s" % (userid, ))
+            self._hidden.discard(userid)
 
     def _usermbox_worker(self, mbox):
         '''
@@ -378,7 +383,7 @@ class MessageBroker(service.Service):
             self.push_manager.mark_user_online(userid)
 
         # broadcast presence (if not hidden)
-        if userid not in self._hidden or not self._hidden[userid]:
+        if not self.user_hidden(userid):
             self.broadcast_presence(userid, c2s.UserPresence.EVENT_ONLINE, None, not broadcast_presence)
 
         # requeue pending messages
@@ -519,6 +524,9 @@ class MessageBroker(service.Service):
                 self.subscribe_user_presence(userid, sub, 0, True)
             del self._presence_lists[userid]
 
+    def user_hidden(self, uid):
+        return uid in self._hidden
+
     def user_online(self, uid):
         '''Returns true if the specified user currently is a registered consumer.'''
         uhash, resource = utils.split_userid(uid)
@@ -648,6 +656,10 @@ class MessageBroker(service.Service):
         for u in users:
             data = self.usercache.get_user_data(u)
             if data:
+                # hidden user - skip
+                if self.user_hidden(data['userid']):
+                    continue
+
                 local_users.append(data)
                 # generic userid found in cache but not online, try remote lookup
                 if len(u) == utils.USERID_LENGTH and not self.user_online(u):
@@ -664,7 +676,7 @@ class MessageBroker(service.Service):
             # user deferred
             duser = defer.Deferred()
             def _lookup(result, local_users, deferred):
-                log.debug("return from lookup: %s / %s / %s" % (result, local_users, deferred))
+                #log.debug("return from lookup: %s / %s / %s" % (result, local_users, deferred))
                 setup = local_users
                 for r in result:
                     for e in r[2].entry:

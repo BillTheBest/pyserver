@@ -254,7 +254,8 @@ class C2SChannel:
         if flags != None:
             fields['flags'] = flags
             # set hide status
-            self.broker.set_user_hide_status(flags & c2s.FLAG_HIDE_PRESENCE)
+            #log.debug("user %s flags: 0x%x" % (self.userid, flags))
+            self.broker.set_user_hide_status(self.userid, flags & c2s.FLAG_HIDE_PRESENCE)
 
         if status_msg != None:
             # status message too long
@@ -500,14 +501,13 @@ class S2SRequestChannel:
         ret = []
         for u in users:
             nstat = {'userid' : u}
-            # TODO filters hidden users
             stat = self.broker.usercache.get_user_data(u)
             if stat:
                 if stat['status']:
                     nstat['status'] = stat['status']
 
-            if not self.broker.user_online(u) and stat:
-                nstat['timestamp'] = stat['timestamp']
+                if not self.broker.user_online(u):
+                    nstat['timestamp'] = stat['timestamp']
 
             ret.append(nstat)
         log.debug("lookup will return %s" % (ret, ))
