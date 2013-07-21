@@ -1,0 +1,6 @@
+eclipse.preferences.version=1
+encoding//kontalk/pyserver2/broker.py=utf-8
+encoding//kontalk/pyserver2/broker_twisted.py=utf-8
+encoding//kontalk/pyserver2/channels.py=utf-8
+encoding//kontalk/pyserver2/storage.py=utf-8
+encoding//kontalk/pyserver2/usercache.py=utf-8

@@ -3,6 +3,7 @@
 	<name>pyserver</name>
 	<comment></comment>
 	<projects>
+		<project>pyserverlib</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>
