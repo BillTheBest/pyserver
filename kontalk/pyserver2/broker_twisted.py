@@ -312,7 +312,7 @@ class C2SServerProtocol(InternalServerProtocol):
                 if data.HasField('flags'):
                     flags = data.flags
                 if data.HasField('status_message'):
-                    status_msg = str(data.status_message)
+                    status_msg = data.status_message.encode('utf-8')
                 else:
                     status_msg = None
                 if data.HasField('google_registration_id'):
